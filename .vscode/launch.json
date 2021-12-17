@@ -12,6 +12,13 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Predicter",
+            "type": "python",
+            "request": "launch",
+            "program": "predicter.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Scrapper",
             "type": "python",
             "request": "launch",

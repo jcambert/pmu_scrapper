@@ -2,7 +2,7 @@ import logging
 import time
 
 
-from scrapper import ResultatScrapper, Scrapper
+from scrapper import HistoryScrapper, ResultatScrapper, ToPredictScrapper
 
 if __name__=="__main__":
 
@@ -19,6 +19,16 @@ if __name__=="__main__":
     # s=Scrapper(use_proxy=True,USE_THREADING=True,to_check_results=True)
     # s.start(predict_filename="predicted")
 
-    resultat=ResultatScrapper(use_proxy=True,use_threading=True)
-    resultat.start("24072021")
+
+
+    #specialites=['PLAT']
+    specialites=None
+    # scrapper=ResultatScrapper(use_proxy=True,use_threading=True,test=True)
+
+    scrapper=HistoryScrapper(use_proxy=False,use_threading=True,test=False)
+    scrapper.start(start="01012018",end="31122018", specialites= specialites)
+
+    # scrapper=ToPredictScrapper(use_proxy=False,use_threading=True,test=False)
+    # scrapper.start(specialites=specialites)
+
     logging.info(f"it's took {(time.time() - start_time)} seconds\nBye...")
