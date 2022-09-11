@@ -12,14 +12,14 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Predicter",
+            "name": "Predict today",
             "type": "python",
             "request": "launch",
             "program": "predicter.py",
             "console": "integratedTerminal"
         },
         {
-            "name": "Scrapper",
+            "name": "Scrap Today",
             "type": "python",
             "request": "launch",
             "program": "__init__.py",

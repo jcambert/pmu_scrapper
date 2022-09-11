@@ -7,6 +7,15 @@ import logging
 from sklearn.base import TransformerMixin
 from sklearn.linear_model import SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import SVC
+from sklearn.gaussian_process import GaussianProcessClassifier
+from sklearn.gaussian_process.kernels import RBF
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
+from sklearn.naive_bayes import GaussianNB
+from sklearn.neural_network import MLPClassifier
+from sklearn.discriminant_analysis import QuadraticDiscriminantAnalysis
+
 from sklearn.pipeline import make_pipeline
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler,OneHotEncoder,LabelEncoder,PolynomialFeatures,FunctionTransformer
@@ -115,6 +124,14 @@ def learning_curve_data(model,X_train,y_train,train_sizes=None,cv=None):
         train_sizes=np.linspace(0.2,1.0,5)
     N,train_score,val_score=learning_curve(model,X_train,y_train,train_sizes=train_sizes,cv=cv)
     return N,train_score,val_score
+
+classifiers = [
+    KNeighborsClassifier(3),
+    DecisionTreeClassifier(max_depth=5),
+    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
+    AdaBoostClassifier(),
+    ]
+
 def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
     
     # GridSearchCv Result
@@ -128,8 +145,12 @@ def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
     preprocessor=make_column_transformer(
         (numerical_pipeline,NUMERICAL_FEATURES),
         (categorical_pipeline,CATEGORICAL_FEATURES))
-    model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
-    
+
+    _models=[]
+    _models.append(make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier))
+    for classifier in classifiers:
+        model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
+        _models.append(model_)
     #  "LEARNING CURVE"
     # N,train_score,val_score=learning_curve(model_,features_train,targets_train,train_sizes=np.linspace(0.1,1.0,10),cv=5)
     # print(N)
@@ -155,9 +176,12 @@ def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
     # model_=grid.best_estimator_
     # print(grid.best_score_,grid.best_params_)
     
-    model_.fit(features_train,targets_train)
+    for index,model in zip(range(len(_models)),_models) :
+        logging.info(f"Start fitting for model {index+1}/{len(_models)}-{model.steps[-1][0]}")
+        model.fit(features_train,targets_train)
 
-    return model_,features_train, features_test, targets_train, targets_test 
+    logging.info("Fiiting is finished")
+    return _models,features_train, features_test, targets_train, targets_test 
 
 def predict_place(model,row):
     # x = np.asarray(row).reshape(1,len(row))
@@ -181,11 +205,14 @@ if __name__=='__main__':
     print_training_score=True
     print_result=True
     training_files={'trot attele':'trot_attele','plat':'plat','trot monte':'trot_monte','obstacle':'obstacle'}
+    filter_max_horse_count_by_course=3
+    # training_files={'trot attele':'trot_attele'}
     # training_files={'plat':'plat'}
     # training_files=['participants_trot_attele']  
 
     output={'date':[],'reunion':[],'course':[],'nom':[],'rapport':[],'numPmu':[],'state':[]}    
-    output_columns=['date','reunion','course','specialite','nom','rapport','numPmu','state','resultat_place','resultat_rapport','gain_brut','gain_net']
+    # output_columns=['date','hippo_code','reunion','course','specialite','nom','rapport','numPmu','state','resultat_place','resultat_rapport','gain_brut','gain_net']
+    output_columns=['index_classifier','date','reunion','course','numPmu','nom','rapport','specialite','hippo_code']
     output_df=pd.DataFrame(columns=output_columns)
     for key,file in training_files.items():
         try:
@@ -203,13 +230,7 @@ if __name__=='__main__':
                 models[hippo_code]['targets_test']=targets_test
                 # print(features_test.head())
                 # print(features_test.columns)
-                if print_confusion_matrix:
-                    logging.info("/"*100)
-                    logging.info("Confusion Matrix")
-                    logging.info(confusion_matrix(targets_test,model.predict(features_test)))
-                if print_training_score:
-                    logging.info("*"*50)
-                    logging.info(f"{key} score: {model.score(features_test, targets_test)}")
+                
             # nb_courses=courses.shape[1]
             # for k in range(nb_courses):
             #     r,c=courses.iloc[k].reunion,courses.iloc[k].course
@@ -217,9 +238,10 @@ if __name__=='__main__':
             for course in courses.iterrows():
                 x = np.asarray(course[1]).reshape(1,len(course[1]))
                 r,c,h=x[0,0],x[0,1],x[0,2]
-                hippo_code=h
+                if filter_by_hippo_code:
+                    hippo_code=h
                 if filter_by_hippo_code  and h not in models:
-                    model,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],shuffle=True)
+                    model,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.2,shuffle=False)
                     models[hippo_code]={}
                     models[hippo_code]['model']=model
                     models[hippo_code]['features_train']=features_train
@@ -235,26 +257,41 @@ if __name__=='__main__':
                 # print(participants.head())
                 # print(participants.columns)
                 try:
-                    place=models[hippo_code]['model'].predict(participants)
-                
-                    res=participants.assign(place=place,
-                                        reunion=r,
-                                        course=c,
-                                        state='place',
-                                        nom=participants_['nom'],
-                                        date=participants_['date'],
-                                        specialite=key,
-                                        resultat_place=0,
-                                        resultat_rapport=0,
-                                        gain_brut=0,
-                                        gain_net=0)
-                    res=res.loc[res['place']==1][output_columns]
-                    if print_result:
-                        nb_res=res.shape[1]
-                        for z in range(nb_res):
-                            t=res.iloc[z]
-                            print(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé" )
-                    output_df=output_df.append(res.copy())
+                    features_test=models[hippo_code]['features_test']
+                    targets_test=models[hippo_code]['targets_test']
+                    for index,m in zip( range(len(models[hippo_code]['model'])) ,models[hippo_code]['model']):
+                        # if print_confusion_matrix and False:
+                        #     logging.info("/"*100)
+                        #     logging.info("Confusion Matrix")
+                        #     logging.info(confusion_matrix(targets_test,m.predict(features_test)))
+                        # if print_training_score and False:
+                        #     logging.info("*"*50)
+                        #     logging.info(f"{key} score: {m.score(features_test, targets_test)}")
+
+                        place=m.predict(participants)
+                    
+                        res=participants.assign(place=place,
+                                            hippo_code=h,
+                                            reunion=r,
+                                            course=c,
+                                            state='place',
+                                            nom=participants_['nom'],
+                                            date=participants_['date'],
+                                            specialite=key,
+                                            resultat_place=0,
+                                            resultat_rapport=0,
+                                            gain_brut=0,
+                                            gain_net=0,
+                                            index_classifier=m.steps[-1][0])
+                        res=res.loc[res['place']==1][output_columns]
+                        # res['count']=res.count()
+                        count=res.shape[0]
+                        if (filter_max_horse_count_by_course and count<=filter_max_horse_count_by_course) or not filter_max_horse_count_by_course:
+                            output_df=pd.concat([output_df,res.copy()])
+                            if print_result:
+                                for z in range(count):
+                                    t=res.iloc[z]
+                                    print(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé" )
                 except Exception as ex:
                     logging.warning(ex)
                 # print(output_df.shape)
@@ -274,11 +311,15 @@ if __name__=='__main__':
                 #         output['numPmu'].append(numPmu)
                 #         output['state'].append('place')
                 #         print(f"R{r}/C{c} -> {detail.nom}[{participant.rapport}] {numPmu} placé" )
+            # output_df[['reunion','course']].to_clipboard()
+            # counts = output_df[['reunion','course']].value_counts()
+            # temp_res = output_df[~output_df[['reunion','course']].isin(counts[counts < 4].index)]
         except FileNotFoundError:
             pass
         except Exception as ex:
             logging.warning(ex)
     if save_to_file:
+        output_df=output_df.sort_values(by=['reunion','course'])
         output_df.to_csv(f"predicted.csv",header=True,sep=";",mode='w')
         output_df.to_html(f"predicted.html")
         # pd.DataFrame.from_dict(output).to_csv(f"predicted.csv",header=True,sep=";",mode='a')
