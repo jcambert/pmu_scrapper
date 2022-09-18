@@ -4,3 +4,6 @@
 **/*.csv
 **/*.html
 partic*.*
+**/*.model
+**/~*.*
+predicted.csv

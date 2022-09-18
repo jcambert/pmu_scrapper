@@ -4,6 +4,9 @@ import numpy as np
 import pandas as pd
 import re
 import logging
+import os.path
+from joblib import dump,load
+
 from sklearn.base import TransformerMixin
 from sklearn.linear_model import SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -37,6 +40,19 @@ music_prog = re.compile(music_pattern,flags=re.IGNORECASE)
 music_penalities={'0':11,'D':6,'T':11,'A':11,'R':11}
 
 DEFAULT_MUSIC=11
+
+
+def load_classifier(name,type_course):
+    if not has_classifier(name,type_course):
+        return False
+    return load(f'{name}_{type_course}.model')
+
+def save_classifier(name,type_course,classifier):
+    dump(classifier, f'{name}_{type_course}.model')
+
+def has_classifier(name,type_course):
+    return os.path.isfile(f'{name}_{type_course}.model')
+
 
 class FuncTransformer(TransformerMixin):
     def __init__(self, func):
@@ -126,12 +142,20 @@ def learning_curve_data(model,X_train,y_train,train_sizes=None,cv=None):
     return N,train_score,val_score
 
 classifiers = [
-    KNeighborsClassifier(3),
-    DecisionTreeClassifier(max_depth=5),
-    RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1),
-    AdaBoostClassifier(),
+    ('sgdclassifier',None),
+    ('kneighborsclassifier',KNeighborsClassifier(3)),
+    ('decisiontreeclassifier',DecisionTreeClassifier(max_depth=5)),
+    ('randomforestclassifier', RandomForestClassifier(max_depth=5, n_estimators=10, max_features=1)),
+    ('adaboostclassifier',AdaBoostClassifier( )),
     ]
-
+def load_classifiers_for_type_course(type_course):
+    models={}
+    result=False
+    for classifier in classifiers:
+        res=load_classifier(classifier[0],type_course)
+        models[classifier[0]]=res
+        result=result or res
+    return result,models
 def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
     
     # GridSearchCv Result
@@ -146,11 +170,12 @@ def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
         (numerical_pipeline,NUMERICAL_FEATURES),
         (categorical_pipeline,CATEGORICAL_FEATURES))
 
-    _models=[]
-    _models.append(make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier))
+    _models={}
+    _models['sgdclassifier']=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
     for classifier in classifiers:
-        model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
-        _models.append(model_)
+        if classifier[1] is not None:
+            model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier[1])
+            _models[classifier[0]]=model_
     #  "LEARNING CURVE"
     # N,train_score,val_score=learning_curve(model_,features_train,targets_train,train_sizes=np.linspace(0.1,1.0,10),cv=5)
     # print(N)
@@ -176,11 +201,11 @@ def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
     # model_=grid.best_estimator_
     # print(grid.best_score_,grid.best_params_)
     
-    for index,model in zip(range(len(_models)),_models) :
-        logging.info(f"Start fitting for model {index+1}/{len(_models)}-{model.steps[-1][0]}")
+    for index, (key, model) in enumerate(_models.items()):
+        logging.info(f"Start fitting for model {index+1}/{len(_models)}-{key}")
         model.fit(features_train,targets_train)
 
-    logging.info("Fiiting is finished")
+    logging.info("Fiting is finished")
     return _models,features_train, features_test, targets_train, targets_test 
 
 def predict_place(model,row):
@@ -212,22 +237,33 @@ if __name__=='__main__':
 
     output={'date':[],'reunion':[],'course':[],'nom':[],'rapport':[],'numPmu':[],'state':[]}    
     # output_columns=['date','hippo_code','reunion','course','specialite','nom','rapport','numPmu','state','resultat_place','resultat_rapport','gain_brut','gain_net']
-    output_columns=['index_classifier','date','reunion','course','numPmu','nom','rapport','specialite','hippo_code']
+    output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
     output_df=pd.DataFrame(columns=output_columns)
     for key,file in training_files.items():
         try:
             logging.info(f"Start prediction for {key}")
-            features,targets=load_file(f"participants_{file}.csv")
+
             to_predict,courses,chevaux=load_file(f"topredict_{file}.csv",is_predict=True)
-            if not filter_by_hippo_code:
-                model,features_train, features_test, targets_train, targets_test =train(features,targets,shuffle=True)
-                hippo_code='all'
-                models[hippo_code]={}
-                models[hippo_code]['model']=model
-                models[hippo_code]['features_train']=features_train
-                models[hippo_code]['features_test']=features_test
-                models[hippo_code]['targets_train']=targets_train
-                models[hippo_code]['targets_test']=targets_test
+            has_models,saved_models=load_classifiers_for_type_course(file)
+            if not has_models:
+                features,targets=load_file(f"participants_{file}.csv")
+                if not filter_by_hippo_code:
+                    models_,features_train, features_test, targets_train, targets_test =train(features,targets,shuffle=True)
+                    
+                    for idx_, (name_, model_) in enumerate(models_.items()):
+                        save_classifier(name_,file,model_)
+                    hippo_code='all'
+                    models[hippo_code]={}
+                    models[hippo_code]['model']=models_
+                    models[hippo_code]['features_train']=features_train
+                    models[hippo_code]['features_test']=features_test
+                    models[hippo_code]['targets_train']=targets_train
+                    models[hippo_code]['targets_test']=targets_test
+            else:
+                if not filter_by_hippo_code:
+                    hippo_code='all'
+                    models[hippo_code]={}
+                    models[hippo_code]['model']=saved_models
                 # print(features_test.head())
                 # print(features_test.columns)
                 
@@ -241,13 +277,20 @@ if __name__=='__main__':
                 if filter_by_hippo_code:
                     hippo_code=h
                 if filter_by_hippo_code  and h not in models:
-                    model,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.2,shuffle=False)
-                    models[hippo_code]={}
-                    models[hippo_code]['model']=model
-                    models[hippo_code]['features_train']=features_train
-                    models[hippo_code]['features_test']=features_test
-                    models[hippo_code]['targets_train']=targets_train
-                    models[hippo_code]['targets_test']=targets_test
+                    if not has_models:
+                        models_,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.2,shuffle=False)
+                        for idx_, (name_, model_) in enumerate(models_.items()):
+                            save_classifier(name_,file,model_)
+                        models[hippo_code]={}
+                        models[hippo_code]['model']=models_
+                        models[hippo_code]['features_train']=features_train
+                        models[hippo_code]['features_test']=features_test
+                        models[hippo_code]['targets_train']=targets_train
+                        models[hippo_code]['targets_test']=targets_test
+                    else:
+                        models[hippo_code]={}
+                        models[hippo_code]['model']=saved_models
+
                 participants_=to_predict[(to_predict['reunion']==r) & (to_predict['course']==c)]
                 logging.info(f"Try to predict some Number from Reunion {r} Course {c}")
                 # print(f"Calculate prediction For Reunion {r}/{c}")
@@ -257,9 +300,10 @@ if __name__=='__main__':
                 # print(participants.head())
                 # print(participants.columns)
                 try:
-                    features_test=models[hippo_code]['features_test']
-                    targets_test=models[hippo_code]['targets_test']
-                    for index,m in zip( range(len(models[hippo_code]['model'])) ,models[hippo_code]['model']):
+                    # features_test=models[hippo_code]['features_test']
+                    # targets_test=models[hippo_code]['targets_test']
+                    # for index,m in zip( range(len(models[hippo_code]['model'])) ,models[hippo_code]['model']):
+                    for idx, (key_, model) in enumerate(models[hippo_code]['model'].items()):
                         # if print_confusion_matrix and False:
                         #     logging.info("/"*100)
                         #     logging.info("Confusion Matrix")
@@ -267,8 +311,10 @@ if __name__=='__main__':
                         # if print_training_score and False:
                         #     logging.info("*"*50)
                         #     logging.info(f"{key} score: {m.score(features_test, targets_test)}")
-
-                        place=m.predict(participants)
+                        if type(model) is dict:
+                            print('toto')
+                            pass
+                        place=model.predict(participants)
                     
                         res=participants.assign(place=place,
                                             hippo_code=h,
@@ -282,7 +328,7 @@ if __name__=='__main__':
                                             resultat_rapport=0,
                                             gain_brut=0,
                                             gain_net=0,
-                                            index_classifier=m.steps[-1][0])
+                                            index_classifier=key_)
                         res=res.loc[res['place']==1][output_columns]
                         # res['count']=res.count()
                         count=res.shape[0]
@@ -319,9 +365,14 @@ if __name__=='__main__':
         except Exception as ex:
             logging.warning(ex)
     if save_to_file:
-        output_df=output_df.sort_values(by=['reunion','course'])
-        output_df.to_csv(f"predicted.csv",header=True,sep=";",mode='w')
-        output_df.to_html(f"predicted.html")
+        try:
+            output_df=output_df.sort_values(by=['reunion','course'])
+            output_df.to_csv(f"predicted.csv",header=True,sep=";",mode='w')
+            output_df.to_html(f"predicted.html")
+        except PermissionError as e:
+            output_df=output_df.sort_values(by=['reunion','course'])
+            output_df.to_csv(f"predicted.csv",header=True,sep=";",mode='w')
+            output_df.to_html(f"predicted.html")
         # pd.DataFrame.from_dict(output).to_csv(f"predicted.csv",header=True,sep=";",mode='a')
 
 class Predicter():
