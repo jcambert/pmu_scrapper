@@ -3,7 +3,9 @@
 **/*.pyc
 **/*.csv
 **/*.html
+**/*.xls?
 partic*.*
 **/*.model
 **/~*.*
 predicted.csv
+__pycache__/scrapper.*.pyc

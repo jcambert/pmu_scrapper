@@ -200,7 +200,7 @@ class ResultatScrapper(AbstractScrapper):
         for spec in resultats:
             if len(resultats[spec])>0:
                 df_resultats=pd.concat(resultats[spec])
-                self._save(df_resultats,self.get_filename() % spec.lower(),self.get_save_mode())
+                self._save(df_resultats,path.join("output", self.get_filename() % spec.lower()),self.get_save_mode())
  
     def __scrap_resulats(self,day,reunion,course,result=False):
         lines=[]
@@ -271,7 +271,7 @@ class HistoryScrapper(AbstractScrapper):
         for spec in participants:
             if len(participants[spec])>0:
                 df_participants=pd.concat(participants[spec])
-                self._save(df_participants,self.get_filename() % spec.lower(),self.get_save_mode())
+                self._save( df_participants,path.join("input",self.get_filename() % spec.lower()),self.get_save_mode())
 
         logging.info(f"End scrapping day:{day}")
     def __scrap_participants(self,day,course,sub,result=False):

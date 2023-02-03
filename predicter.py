@@ -32,6 +32,8 @@ HEADER_COLUMNS=['date','reunion','course','nom']
 NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
 CATEGORICAL_FEATURES=['hippo_code','deferre']
 CALCULATED_FEATURES=[]
+MODEL_PATH='models'
+DATA_PATH='datas'
 encoders={}
 encoder=OneHotEncoder(handle_unknown = 'ignore')
 
@@ -45,10 +47,10 @@ DEFAULT_MUSIC=11
 def load_classifier(name,type_course):
     if not has_classifier(name,type_course):
         return False
-    return load(f'{name}_{type_course}.model')
+    return load(os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
 
 def save_classifier(name,type_course,classifier):
-    dump(classifier, f'{name}_{type_course}.model')
+    dump(classifier,os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
 
 def has_classifier(name,type_course):
     return os.path.isfile(f'{name}_{type_course}.model')
@@ -243,10 +245,10 @@ if __name__=='__main__':
         try:
             logging.info(f"Start prediction for {key}")
 
-            to_predict,courses,chevaux=load_file(f"topredict_{file}.csv",is_predict=True)
+            to_predict,courses,chevaux=load_file(os.path.join("input", f"topredict_{file}.csv"),is_predict=True)
             has_models,saved_models=load_classifiers_for_type_course(file)
             if not has_models:
-                features,targets=load_file(f"participants_{file}.csv")
+                features,targets=load_file(os.path.join("input", f"participants_{file}.csv"))
                 if not filter_by_hippo_code:
                     models_,features_train, features_test, targets_train, targets_test =train(features,targets,shuffle=True)
                     
@@ -367,12 +369,12 @@ if __name__=='__main__':
     if save_to_file:
         try:
             output_df=output_df.sort_values(by=['reunion','course'])
-            output_df.to_csv(f"predicted.csv",header=True,sep=";",mode='w')
-            output_df.to_html(f"predicted.html")
+            output_df.to_csv(os.path.join("output", f"predicted.csv"),header=True,sep=";",mode='w')
+            output_df.to_html(os.path.join("output", f"predicted.html"))
         except PermissionError as e:
             output_df=output_df.sort_values(by=['reunion','course'])
-            output_df.to_csv(f"predicted.csv",header=True,sep=";",mode='w')
-            output_df.to_html(f"predicted.html")
+            output_df.to_csv(os.path.join("output", f"predicted.csv"),header=True,sep=";",mode='w')
+            output_df.to_html(os.path.join("output", f"predicted.html"))
         # pd.DataFrame.from_dict(output).to_csv(f"predicted.csv",header=True,sep=";",mode='a')
 
 class Predicter():
