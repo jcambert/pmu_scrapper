@@ -8,4 +8,4 @@ partic*.*
 **/*.model
 **/~*.*
 predicted.csv
-__pycache__/scrapper.*.pyc
+**/__pycache__/scrapper.*.pyc

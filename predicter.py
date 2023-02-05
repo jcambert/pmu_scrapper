@@ -53,7 +53,7 @@ def save_classifier(name,type_course,classifier):
     dump(classifier,os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
 
 def has_classifier(name,type_course):
-    return os.path.isfile(f'{name}_{type_course}.model')
+    return os.path.isfile(os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
 
 
 class FuncTransformer(TransformerMixin):
