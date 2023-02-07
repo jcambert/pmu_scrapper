@@ -19,6 +19,13 @@
             "console": "integratedTerminal"
         },
         {
+            "name": "Resultat today",
+            "type": "python",
+            "request": "launch",
+            "program": "resultat.py",
+            "console": "integratedTerminal"
+        },
+        {
             "name": "Scrap Today",
             "type": "python",
             "request": "launch",

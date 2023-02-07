@@ -206,6 +206,7 @@ class ResultatScrapper(AbstractScrapper):
         lines=[]
         try:
             resultats=self._get_resultats(day,reunion,course,as_json=True)
+            
             for resultat in resultats:
                 mise_base=int(resultat['miseBase'])
                 libelle=resultat['typePari']
@@ -221,9 +222,12 @@ class ResultatScrapper(AbstractScrapper):
                 
             if isinstance(result,list):
                 df_lines=pd.DataFrame(lines,columns=['date','reunion','course','pari','numPmu','rapport'])
+                df_lines = df_lines[df_lines.pari.isin (['E_SIMPLE_GAGNANT','E_SIMPLE_PLACE'])]
                 result.append( df_lines)
             else:
-                return pd.DataFrame(lines,columns=['date','reunion','course','pari','numPmu','rapport'])
+                df= pd.DataFrame(lines,columns=['date','reunion','course','pari','numPmu','rapport'])
+                df = df[df.pari.isin( ['E_SIMPLE_GAGNANT','E_SIMPLE_PLACE'])]
+                return df
         except Exception as ex:
             logging.error(ex)
             return False
