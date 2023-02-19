@@ -19,7 +19,7 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Resultat today",
+            "name": "Resultat Yesterday",
             "type": "python",
             "request": "launch",
             "program": "resultat.py",

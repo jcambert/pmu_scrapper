@@ -4,7 +4,7 @@ import time
 from sympy import true
 
 
-from scrapper import  ResultatScrapper
+from scrapper import  ResultatScrapper,get_yesterday
 
 if __name__=="__main__":
 
@@ -18,6 +18,6 @@ if __name__=="__main__":
     #specialites=['PLAT']
     scrapper=ResultatScrapper(use_proxy=use_proxy,use_threading=True,test=False)
 
-    scrapper.start(specialites=specialites,start="02022023",end="03022023")
+    scrapper.start(specialites=specialites,start=get_yesterday())
 
     logging.info(f"it's took {(time.time() - start_time)} seconds\nBye...")

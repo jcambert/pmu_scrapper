@@ -36,4 +36,3 @@ if __name__=="__main__":
     scrapper.start(specialites=specialites)
 
     logging.info(f"it's took {(time.time() - start_time)} seconds\nBye...")
-    print('Bye...')

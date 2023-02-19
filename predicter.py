@@ -6,7 +6,7 @@ import re
 import logging
 import os.path
 from joblib import dump,load
-
+from os import error, path
 from sklearn.base import TransformerMixin
 from sklearn.linear_model import SGDClassifier
 from sklearn.neighbors import KNeighborsClassifier
@@ -367,14 +367,19 @@ if __name__=='__main__':
         except Exception as ex:
             logging.warning(ex)
     if save_to_file:
+        output_df=output_df.sort_values(by=['reunion','course'])
+        def save_fn():
+            filename=os.path.join("output", f"predicted.csv");
+            mode='a'
+            writeHeader=not path.exists(filename) or mode=='w'
+            output_df.to_csv(filename,header=False,sep=";",mode=mode)
+            
+            output_df.to_html(os.path.join("output", f"predicted.html"),header=True,justify='left',border=1)
+
         try:
-            output_df=output_df.sort_values(by=['reunion','course'])
-            output_df.to_csv(os.path.join("output", f"predicted.csv"),header=True,sep=";",mode='w')
-            output_df.to_html(os.path.join("output", f"predicted.html"))
+            save_fn()
         except PermissionError as e:
-            output_df=output_df.sort_values(by=['reunion','course'])
-            output_df.to_csv(os.path.join("output", f"predicted.csv"),header=True,sep=";",mode='w')
-            output_df.to_html(os.path.join("output", f"predicted.html"))
+            save_fn()
         # pd.DataFrame.from_dict(output).to_csv(f"predicted.csv",header=True,sep=";",mode='a')
 
 class Predicter():

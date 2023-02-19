@@ -164,11 +164,13 @@ class AbstractScrapper():
         df=pd.DataFrame(resp)
         
         return df
+
 class ResultatScrapper(AbstractScrapper):
     def __init__(self,use_proxy=True,use_threading=True,test=False,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="resultats_%s.csv"
-    
+    def get_save_mode(self):
+        return 'a'
     def _scrap(self,specialites,day):
         df_reunions=self._get_reunions(day,as_json=True)
         if isinstance(df_reunions,bool) and not df_reunions:
@@ -339,6 +341,7 @@ class HistoryScrapper(AbstractScrapper):
         except Exception as ex:
             logging.error(ex)
             return False
+
 class ToPredictScrapper(HistoryScrapper):
     def __init__(self,use_proxy,use_threading,test,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
@@ -346,4 +349,4 @@ class ToPredictScrapper(HistoryScrapper):
     def get_default_start_date(self):
         return get_today()
     def get_save_mode(self):
-        return 'w'
+        return 'a'
