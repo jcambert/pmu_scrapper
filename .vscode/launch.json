@@ -9,6 +9,7 @@
             "type": "python",
             "request": "launch",
             "program": "${file}",
+            "args": [],
             "console": "integratedTerminal"
         },
         {
@@ -29,7 +30,8 @@
             "name": "Scrap Today",
             "type": "python",
             "request": "launch",
-            "program": "__init__.py",
+            "program": "scrap.py",
+            "args": ["start=20022023"],
             "console": "integratedTerminal"
         }
     ]

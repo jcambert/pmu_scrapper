@@ -1,7 +1,10 @@
 import logging
 import time
-import sys
-from scrapper import  ResultatScrapper,get_yesterday,get_pmu_date
+import sys,getopt
+from sympy import true
+
+
+from scrapper import ToPredictScrapper,get_pmu_date,get_today
 
 if __name__=="__main__":
 
@@ -12,13 +15,12 @@ if __name__=="__main__":
     use_proxy=False
     start_time = time.time()
 
+    
     args=dict(arg.split('=') for arg in sys.argv[1:])
     if not 'start' in args:
-        args['start']=get_pmu_date(get_yesterday())
-
-    #specialites=['PLAT']
-    scrapper=ResultatScrapper(use_proxy=use_proxy,use_threading=True,test=False)
-
+        args['start']=get_pmu_date(get_today())
+        
+    scrapper=ToPredictScrapper(use_proxy=use_proxy,use_threading=True,test=False)
     scrapper.start(specialites=specialites,**args)
 
     logging.info(f"it's took {(time.time() - start_time)} seconds\nBye...")

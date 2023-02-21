@@ -35,4 +35,43 @@ function LoadAllPmuIntoDatabase{
     }
 }
 
-Export-ModuleMember -Function CleanPmuOutputDirectory,LoadPmuIntoDatabase, LoadAllPmuIntoDatabase
+function Invoke-LoadPmu{
+    [CmdletBinding()]
+    param(
+        [string]$start
+        )
+        begin{
+            
+        }
+        process{
+            Clear-Host
+            
+        [System.DateOnly]$now   =[System.DateOnly]::MinValue
+        if(![System.DateOnly]::TryParse($start,[ref] $now)){
+            $dt=Get-Date
+            $now = [System.DateOnly]::FromDateTime($dt)
+            $today= $now.ToString( "ddMMyyyy")
+            $yesterday=$now.AddDays(-1).ToString("ddMMyyyy")
+        }else{
+            $today= $now.ToString( "ddMMyyyy")
+            $yesterday = $now.AddDays(-1).ToString("ddMMyyyy")
+        }
+
+        # $drive = $PSScriptRoot | Split-Path  -Qualifier
+        # "$drive\anaconda3\\shell\condabin\conda-hook.ps1"
+
+        conda activate base
+        # Write-Output "start=$today"
+        #Scrap today
+        python scrap.py start=$today
+        #Predict today
+        python predicter.py 
+        #retrieve resultat of yesterday
+        python resultat.py start=$yesterday
+
+        LoadAllPmuIntoDatabase
+    }
+}
+
+Set-Alias ldpmu Invoke-LoadPmu
+Export-ModuleMember -Function Invoke-LoadPmu,CleanPmuOutputDirectory,LoadPmuIntoDatabase, LoadAllPmuIntoDatabase -Alias ldpmu
