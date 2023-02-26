@@ -51,6 +51,7 @@ function Invoke-LoadPmu{
         }
         process{
             Clear-Host
+            Set-Location $current_dir
             CleanPmuInputDirectory
             [System.DateOnly]$now   =[System.DateOnly]::MinValue
             if(![System.DateOnly]::TryParse($start,[ref] $now)){
@@ -64,7 +65,7 @@ function Invoke-LoadPmu{
 
             # $drive = $PSScriptRoot | Split-Path  -Qualifier
             # "$drive\anaconda3\\shell\condabin\conda-hook.ps1"
-
+            
             conda activate base
             # Write-Output "start=$today"
             # Write-Output "yesterday=$yesterday"
