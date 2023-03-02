@@ -76,7 +76,6 @@ def calculate_music(music,speciality='a'):
     points=0
     results=[]
     try:
-        # music=row['musique']
         results = music_prog.findall(music)
         for result in results:
             point= music_penalities[result[0]] if result[0] in music_penalities else int(result[0])
@@ -112,16 +111,10 @@ def place_converter(row):
 def load_file(filename,is_predict=False):
     types={key:np.number for key in NUMERICAL_FEATURES if key not in ['sexe','musique','deferre']}
     df=pd.read_csv(filename,sep=";",header=0,usecols=HEADER_COLUMNS+NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES+['ordreArrivee'],dtype=types,low_memory=False,converters={'musique':calculate_music,'sexe':sexe_converter,'deferre':deferre_converter})
-    # for c in df.columns:
-    #     print(c)
-    # print(df.head())
+
     if not is_predict:
-        # df['ordreArrivee'] = df['ordreArrivee'].fillna(0)
         df['ordreArrivee'].fillna(0,inplace=True)
         places=df.apply (lambda row: place_converter(row), axis=1)
-        # df['musique']=df.apply(lambda row:calculate_music(row),axis=1)  
-        # df=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
-        # encode(df,CATEGORICAL_FEATURES)
         targets = places
         features = df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
         return features,targets
@@ -133,8 +126,6 @@ def load_file(filename,is_predict=False):
 def load_to_predict_file(filename):
     df=pd.read_csv(filename,sep=";")
     courses=df[['reunion','course']].drop_duplicates()
-    # df=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
-    # encode(df,CATEGORICAL_FEATURES)
     return df,courses
 
 def learning_curve_data(model,X_train,y_train,train_sizes=None,cv=None):
@@ -178,30 +169,7 @@ def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
         if classifier[1] is not None:
             model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier[1])
             _models[classifier[0]]=model_
-    #  "LEARNING CURVE"
-    # N,train_score,val_score=learning_curve(model_,features_train,targets_train,train_sizes=np.linspace(0.1,1.0,10),cv=5)
-    # print(N)
-    # print(train_score.mean(axis=1))
-    # print( val_score.mean(axis=1))
 
-    # plt.plot(N, train_score.mean(axis=1), label='train')
-    # plt.plot(N, val_score.mean(axis=1), label='validation')
-    # plt.xlabel('train_sizes')
-    # plt.legend()
-
-    #"GridSearchCV Test"
-    # param_grid={'sgdclassifier__loss':['hinge', 'log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_loss', 'huber', 'epsilon_insensitive','squared_epsilon_insensitive'],
-    #             'sgdclassifier__max_iter':np.arange(10,1000,2),
-    #             'sgdclassifier__shuffle':[True,False],
-    #             'sgdclassifier__n_jobs':[1,2,3,4],
-    #             'sgdclassifier__learning_rate':['constant','optimal','invscaling','adaptive'],
-    #             'sgdclassifier__eta0':[0.05],
-    #             'sgdclassifier__max_iter':[5000]}
-    # cv=StratifiedKFold(4)
-    # grid=GridSearchCV(model_,param_grid,cv=cv)
-    # grid.fit(features_train,targets_train)
-    # model_=grid.best_estimator_
-    # print(grid.best_score_,grid.best_params_)
     
     for index, (key, model) in enumerate(_models.items()):
         logging.info(f"Start fitting for model {index+1}/{len(_models)}-{key}")
@@ -266,13 +234,9 @@ if __name__=='__main__':
                     hippo_code='all'
                     models[hippo_code]={}
                     models[hippo_code]['model']=saved_models
-                # print(features_test.head())
-                # print(features_test.columns)
+               
                 
-            # nb_courses=courses.shape[1]
-            # for k in range(nb_courses):
-            #     r,c=courses.iloc[k].reunion,courses.iloc[k].course
-                # print(courses.iloc[k].reunion)
+            
             for course in courses.iterrows():
                 x = np.asarray(course[1]).reshape(1,len(course[1]))
                 r,c,h=x[0,0],x[0,1],x[0,2]
@@ -295,27 +259,12 @@ if __name__=='__main__':
 
                 participants_=to_predict[(to_predict['reunion']==r) & (to_predict['course']==c)]
                 logging.info(f"Try to predict some Number from Reunion {r} Course {c}")
-                # print(f"Calculate prediction For Reunion {r}/{c}")
                 participants=participants_[NUMERICAL_FEATURES+  CATEGORICAL_FEATURES+CALCULATED_FEATURES]
-                # nb_participants=participants.shape[0]
-                # features_couts=participants.shape[1]
-                # print(participants.head())
-                # print(participants.columns)
+                
                 try:
-                    # features_test=models[hippo_code]['features_test']
-                    # targets_test=models[hippo_code]['targets_test']
-                    # for index,m in zip( range(len(models[hippo_code]['model'])) ,models[hippo_code]['model']):
+                    
                     for idx, (key_, model) in enumerate(models[hippo_code]['model'].items()):
-                        # if print_confusion_matrix and False:
-                        #     logging.info("/"*100)
-                        #     logging.info("Confusion Matrix")
-                        #     logging.info(confusion_matrix(targets_test,m.predict(features_test)))
-                        # if print_training_score and False:
-                        #     logging.info("*"*50)
-                        #     logging.info(f"{key} score: {m.score(features_test, targets_test)}")
-                        if type(model) is dict:
-                            print('toto')
-                            pass
+ 
                         place=model.predict(participants)
                     
                         res=participants.assign(place=place,
@@ -332,7 +281,6 @@ if __name__=='__main__':
                                             gain_net=0,
                                             index_classifier=key_)
                         res=res.loc[res['place']==1][output_columns]
-                        # res['count']=res.count()
                         count=res.shape[0]
                         if (filter_max_horse_count_by_course and count<=filter_max_horse_count_by_course) or not filter_max_horse_count_by_course:
                             output_df=pd.concat([output_df,res.copy()])
@@ -342,27 +290,9 @@ if __name__=='__main__':
                                     print(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé" )
                 except Exception as ex:
                     logging.warning(ex)
-                # print(output_df.shape)
-                # for i in range(nb_participants):
-                #     participant=participants.iloc[i]
-                    
-                #     p=pd.DataFrame( participant.values.reshape(1,features_couts),columns=participants.columns)
-                #     # print(f"Calculate chance to be placed for {p.numPmu}")
-                #     detail=participants_.iloc[i]
-                #     numPmu,result,prediction=predict_place(model,p)
-                #     if result:
-                #         output['date'].append(detail.date)
-                #         output['reunion'].append(r)
-                #         output['course'].append(c)
-                #         output['nom'].append(detail.nom)
-                #         output['rapport'].append(participant.rapport)
-                #         output['numPmu'].append(numPmu)
-                #         output['state'].append('place')
-                #         print(f"R{r}/C{c} -> {detail.nom}[{participant.rapport}] {numPmu} placé" )
-            # output_df[['reunion','course']].to_clipboard()
-            # counts = output_df[['reunion','course']].value_counts()
-            # temp_res = output_df[~output_df[['reunion','course']].isin(counts[counts < 4].index)]
-        except FileNotFoundError:
+                
+        except FileNotFoundError as fnf_error:
+            logging.warning(f'{fnf_error}. Prediction is impossible')
             pass
         except Exception as ex:
             logging.warning(ex)
@@ -380,7 +310,6 @@ if __name__=='__main__':
             save_fn()
         except PermissionError as e:
             save_fn()
-        # pd.DataFrame.from_dict(output).to_csv(f"predicted.csv",header=True,sep=";",mode='a')
 
 class Predicter():
     def __init__(self,use_threading=True,test=False,**kwargs) -> None:
