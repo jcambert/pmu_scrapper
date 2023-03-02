@@ -5,13 +5,13 @@ $base_url="https://localhost:44381/api/app/pmu/"
 #Invoke-WebRequest -Method 'Post' -Uri $url -Body ($body|ConvertTo-Json) -ContentType "application/json"
 function CleanPmuOutputDirectory{
     process{
-        Remove-Item "$current_dir\output\*.*"
+        Remove-Item "$current_dir\output\*.csv"
     }
 }
 
 function CleanPmuInputDirectory{
     process{
-        Remove-Item "$current_dir\input\*.*"
+        Remove-Item "$current_dir\input\*.csv"
     }
 }
 function LoadPmuIntoDatabase{
