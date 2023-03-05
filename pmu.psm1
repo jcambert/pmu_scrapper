@@ -71,11 +71,11 @@ function Invoke-LoadPmu{
             # Write-Output "yesterday=$yesterday"
             # return
             #Scrap today
-            python scrap.py start=$today
+            python scrap.py start=$today count=1
             #Predict today
             python predicter.py 
             #retrieve resultat of yesterday
-            python resultat.py start=$yesterday
+            python resultat.py start=$yesterday count=1
 
             LoadAllPmuIntoDatabase
         }

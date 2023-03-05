@@ -31,7 +31,15 @@
             "type": "python",
             "request": "launch",
             "program": "scrap.py",
-            "args": ["start=20022023"],
+            "args": ["start=01012023","end=01022023"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "History",
+            "type": "python",
+            "request": "launch",
+            "program": "history.py",
+            "args": ["start=01012018","end=01012019","sleep=1500"],
             "console": "integratedTerminal"
         }
     ]

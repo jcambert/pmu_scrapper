@@ -149,7 +149,7 @@ def load_classifiers_for_type_course(type_course):
         models[classifier[0]]=res
         result=result or res
     return result,models
-def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
+def train(features,targets,test_size=0.15,random_state=200,shuffle=False):
     
     # GridSearchCv Result
     #{'sgdclassifier__eta0': 0.05, 'sgdclassifier__learning_rate': 'optimal', 'sgdclassifier__loss': 'squared_hinge', 'sgdclassifier__max_iter': 5000, 'sgdclassifier__n_jobs': 1, 'sgdclassifier__shuffle': True}
@@ -164,10 +164,10 @@ def train(features,targets,test_size=0.3,random_state=5,shuffle=False):
         (categorical_pipeline,CATEGORICAL_FEATURES))
 
     _models={}
-    _models['sgdclassifier']=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
+    _models['sgdclassifier']=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.05),classifier)
     for classifier in classifiers:
         if classifier[1] is not None:
-            model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier[1])
+            model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.05),classifier[1])
             _models[classifier[0]]=model_
 
     
@@ -216,9 +216,9 @@ if __name__=='__main__':
             to_predict,courses,chevaux=load_file(os.path.join("input", f"topredict_{file}.csv"),is_predict=True)
             has_models,saved_models=load_classifiers_for_type_course(file)
             if not has_models:
-                features,targets=load_file(os.path.join("input", f"participants_{file}.csv"))
+                features,targets=load_file(os.path.join("history", f"participants_{file}.csv"))
                 if not filter_by_hippo_code:
-                    models_,features_train, features_test, targets_train, targets_test =train(features,targets,shuffle=True)
+                    models_,features_train, features_test, targets_train, targets_test =train(features,targets,test_size=0.05,shuffle=True)
                     
                     for idx_, (name_, model_) in enumerate(models_.items()):
                         save_classifier(name_,file,model_)
@@ -244,7 +244,7 @@ if __name__=='__main__':
                     hippo_code=h
                 if filter_by_hippo_code  and h not in models:
                     if not has_models:
-                        models_,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.2,shuffle=False)
+                        models_,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.05,shuffle=True)
                         for idx_, (name_, model_) in enumerate(models_.items()):
                             save_classifier(name_,file,model_)
                         models[hippo_code]={}

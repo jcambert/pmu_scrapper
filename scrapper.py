@@ -14,7 +14,7 @@ PROXIES = {
     'http': 'socks5://localhost:9050',
     'https': 'socks5://localhost:9050'
 }
-PMU_MIN_DATE='01032013'
+#PMU_MIN_DATE='01032013'
 PMU_DATE_FORMAT='%d%m%Y'
 
 PREDICT_FILENAME_PREFIX="to_predict_"
@@ -24,7 +24,11 @@ ptcp_url="https://online.turfinfo.api.pmu.fr/rest/client/1/programme/%s/R%s/C%s/
 resultat_url="https://turfinfo.api.pmu.fr/rest/client/1/programme/%s/R%s/C%s/rapports-definitifs?specialisation=INTERNET&combinaisonEnTableau=true"
 courses_filename="courses.csv"
 ptcp_filename="%sparticipants_%s.csv"
-
+def get_tommorow(fmt=False):
+    yesterday = datetime.now() + timedelta(1)
+    if fmt:
+        return yesterday.strftime(fmt)
+    return yesterday
 def get_yesterday(fmt=False):
     yesterday = datetime.now() - timedelta(1)
     if fmt:
@@ -98,6 +102,14 @@ class AbstractScrapper():
         return 'a'
     def get_filename(self):
         return self._fname if isinstance(self._fname,str) else self._filename
+    def get_end(self,current,**kwargs):
+        if 'end' in kwargs:
+            result= get_date_from_pmu( kwargs['end'])
+        elif 'count' in kwargs:
+            result=current+timedelta( int(kwargs['count']))
+        else:
+            result=get_date_from_pmu(yesterday)
+        return result
     def start(self,start=None,**kwargs):
         if(self.__class__.__name__ == type(AbstractScrapper).__name__):
             raise NotImplementedError(f"You cant run {self.__class__.__name__}")
@@ -112,7 +124,8 @@ class AbstractScrapper():
         else:
             if start==get_pmu_date(get_yesterday()) or start==get_pmu_date(get_today()):
                 kwargs['count']=0
-        end=get_date_from_pmu( kwargs['end']) if 'end' in kwargs  else ( current+timedelta( int(kwargs['count'])+1) if 'count' in kwargs else get_date_from_pmu(yesterday))
+        # end=get_date_from_pmu( kwargs['end']) if 'end' in kwargs  else ( current+timedelta( int(kwargs['count'])+1) if 'count' in kwargs else get_date_from_pmu(yesterday))
+        end=self.get_end(current,**kwargs)
         sleep=int(kwargs['sleep']) if 'sleep' in kwargs else 500
         specialites = kwargs['specialites'] if 'specialites' in kwargs else None
         logging.info(f"Start scrapping {self.__class__.__name__} from {get_date_from_pmu( start)} to {end} exclude")
@@ -238,6 +251,7 @@ class HistoryScrapper(AbstractScrapper):
     def __init__(self,use_proxy=True,use_threading=True,test=False,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="participants_%s.csv"
+        self._directory="history"
     def _scrap(self,specialites,day):
         day=get_pmu_date(day)
         logging.info(f"Start scraping {get_date_from_pmu( day)}")
@@ -277,7 +291,7 @@ class HistoryScrapper(AbstractScrapper):
         for spec in participants:
             if len(participants[spec])>0:
                 df_participants=pd.concat(participants[spec])
-                self._save( df_participants,path.join("input",self.get_filename() % spec.lower()),self.get_save_mode())
+                self._save( df_participants,path.join(self._directory,self.get_filename() % spec.lower()),self.get_save_mode())
 
         logging.info(f"End scrapping day:{day}")
     def __scrap_participants(self,day,course,sub,result=False):
@@ -346,6 +360,7 @@ class ToPredictScrapper(HistoryScrapper):
     def __init__(self,use_proxy,use_threading,test,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="topredict_%s.csv"
+        self._directory="input"
     def get_default_start_date(self):
         return get_today()
     def get_save_mode(self):
