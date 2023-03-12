@@ -119,7 +119,7 @@ def load_file(filename,is_predict=False):
         features = df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
         return features,targets
     else:
-        courses=df[['reunion','course','hippo_code']].drop_duplicates()
+        courses=df[['date','reunion','course','hippo_code']].drop_duplicates().sort_values(by=['date','reunion','course'])
         participants=df[['date','nom','numPmu']]
         return df[HEADER_COLUMNS+NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES],courses,participants
 
@@ -216,6 +216,7 @@ if __name__=='__main__':
             to_predict,courses,chevaux=load_file(os.path.join("input", f"topredict_{file}.csv"),is_predict=True)
             has_models,saved_models=load_classifiers_for_type_course(file)
             if not has_models:
+                logging.info(f"{file} has no model=> create model train")
                 features,targets=load_file(os.path.join("history", f"participants_{file}.csv"))
                 if not filter_by_hippo_code:
                     models_,features_train, features_test, targets_train, targets_test =train(features,targets,test_size=0.05,shuffle=True)
@@ -230,6 +231,7 @@ if __name__=='__main__':
                     models[hippo_code]['targets_train']=targets_train
                     models[hippo_code]['targets_test']=targets_test
             else:
+                logging.info(f"{file} has a model to predict")
                 if not filter_by_hippo_code:
                     hippo_code='all'
                     models[hippo_code]={}
@@ -239,7 +241,7 @@ if __name__=='__main__':
             
             for course in courses.iterrows():
                 x = np.asarray(course[1]).reshape(1,len(course[1]))
-                r,c,h=x[0,0],x[0,1],x[0,2]
+                d,r,c,h=x[0,0],x[0,1],x[0,2],x[0,3]
                 if filter_by_hippo_code:
                     hippo_code=h
                 if filter_by_hippo_code  and h not in models:
@@ -257,8 +259,8 @@ if __name__=='__main__':
                         models[hippo_code]={}
                         models[hippo_code]['model']=saved_models
 
-                participants_=to_predict[(to_predict['reunion']==r) & (to_predict['course']==c)]
-                logging.info(f"Try to predict some Number from Reunion {r} Course {c}")
+                participants_=to_predict[(to_predict['date']==d) & (to_predict['reunion']==r) & (to_predict['course']==c)]
+                logging.info(f"Try to predict some Number for Date:{d} - Reunion:{r} - Course:{c}")
                 participants=participants_[NUMERICAL_FEATURES+  CATEGORICAL_FEATURES+CALCULATED_FEATURES]
                 
                 try:
@@ -287,7 +289,9 @@ if __name__=='__main__':
                             if print_result:
                                 for z in range(count):
                                     t=res.iloc[z]
-                                    print(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé" )
+                                    print(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé -> Classifier:{key_}" )
+                        elif count==0 and print_result:      
+                            print(f"R{r}/C{c} -> aucune prediction")
                 except Exception as ex:
                     logging.warning(ex)
                 
@@ -297,7 +301,7 @@ if __name__=='__main__':
         except Exception as ex:
             logging.warning(ex)
     if save_to_file:
-        output_df=output_df.sort_values(by=['reunion','course'])
+        output_df=output_df.sort_values(by=['date','reunion','course'])
         def save_fn():
             filename=os.path.join("output", f"predicted.csv");
             mode='a'
@@ -311,20 +315,20 @@ if __name__=='__main__':
         except PermissionError as e:
             save_fn()
 
-class Predicter():
-    def __init__(self,use_threading=True,test=False,**kwargs) -> None:
-        self._use_threading,self._test=use_threading,test
-        self._fname= kwargs['fname'] if 'fname' in kwargs else None
-        self._print_confusion_matrix=kwargs['print_confusion_matrix'] if 'print_confusion_matrix' in kwargs else False
-        self._print_training_score=kwargs['print_training_score'] if 'print_training_score' in kwargs else False
-        self._print_result=kwargs['print_result'] if 'print_result' in kwargs else False
+# class Predicter():
+#     def __init__(self,use_threading=True,test=False,**kwargs) -> None:
+#         self._use_threading,self._test=use_threading,test
+#         self._fname= kwargs['fname'] if 'fname' in kwargs else None
+#         self._print_confusion_matrix=kwargs['print_confusion_matrix'] if 'print_confusion_matrix' in kwargs else False
+#         self._print_training_score=kwargs['print_training_score'] if 'print_training_score' in kwargs else False
+#         self._print_result=kwargs['print_result'] if 'print_result' in kwargs else False
 
-    def train(self,features,targets,test_size=0.3,random_state=5,shuffle=False):
-        classifier=SGDClassifier(random_state=random_state,loss='squared_hinge',shuffle=True,learning_rate='optimal')
-        features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
-        numerical_pipeline=make_pipeline(SimpleImputer(fill_value=0), RobustScaler())
-        categorical_pipeline=(make_pipeline(OneHotEncoder(handle_unknown = 'ignore')))
-        preprocessor=make_column_transformer(
-        (numerical_pipeline,NUMERICAL_FEATURES),
-        (categorical_pipeline,CATEGORICAL_FEATURES))
-        model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
+#     def train(self,features,targets,test_size=0.3,random_state=5,shuffle=False):
+#         classifier=SGDClassifier(random_state=random_state,loss='squared_hinge',shuffle=True,learning_rate='optimal')
+#         features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
+#         numerical_pipeline=make_pipeline(SimpleImputer(fill_value=0), RobustScaler())
+#         categorical_pipeline=(make_pipeline(OneHotEncoder(handle_unknown = 'ignore')))
+#         preprocessor=make_column_transformer(
+#         (numerical_pipeline,NUMERICAL_FEATURES),
+#         (categorical_pipeline,CATEGORICAL_FEATURES))
+#         model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)

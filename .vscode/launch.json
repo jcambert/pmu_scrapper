@@ -24,6 +24,7 @@
             "type": "python",
             "request": "launch",
             "program": "resultat.py",
+            "args": ["start=01012023","end=01022023"],
             "console": "integratedTerminal"
         },
         {
