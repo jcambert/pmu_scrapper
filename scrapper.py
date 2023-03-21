@@ -188,6 +188,7 @@ class ResultatScrapper(AbstractScrapper):
         df_reunions=self._get_reunions(day,as_json=True)
         if isinstance(df_reunions,bool) and not df_reunions:
             return
+        courses=pd.DataFrame()
         list_reunions= df_reunions['programme']['reunions']
         resultats={'TROT_MONTE':[],'TROT_ATTELE':[],'PLAT':[],'OBSTACLE':[]}
         for reunion in list_reunions:
@@ -196,6 +197,16 @@ class ResultatScrapper(AbstractScrapper):
                 num_reunion=int(reunion['numExterne'])
                 num_course=int(course['numExterne'])
                 specialite=course['specialite']
+                c=pd.DataFrame.from_dict(course, orient = 'index').transpose()
+                hippo=c['hippodrome'].to_dict()[0]
+                c['hippoCode']=hippo['codeHippodrome']
+                c['hippoCourt']=hippo['libelleCourt']
+                c['hippoLong']=hippo['libelleLong']
+                if(courses.shape[0]==0):
+                    courses=c
+                else:
+                    courses=pd.concat([c,courses], axis=0)
+                # print(courses.head())
                 if specialites is  not None and specialite not in specialites:
                     continue
                 if self._use_threading:
@@ -216,7 +227,10 @@ class ResultatScrapper(AbstractScrapper):
             if len(resultats[spec])>0:
                 df_resultats=pd.concat(resultats[spec])
                 self._save(df_resultats,path.join("output", self.get_filename() % spec.lower()),self.get_save_mode())
- 
+
+        courses=courses[['numReunion','numOrdre','libelle','libelleCourt','montantPrix','distance','distanceUnit','discipline','specialite','nombreDeclaresPartants','ordreArrivee','hippoCode','hippoCourt','hippoLong']]
+        courses['date']=get_date_from_pmu(day)
+        self._save(courses,path.join("output", "courses.csv"),self.get_save_mode())
     def __scrap_resulats(self,day,reunion,course,result=False):
         lines=[]
         try:

@@ -1,6 +1,6 @@
 
 $current_dir=$PSScriptRoot
-$base_url="https://localhost:44381/api/app/pmu/"
+$base_url="https://localhost:44381/api/pmu/"
 
 #Invoke-WebRequest -Method 'Post' -Uri $url -Body ($body|ConvertTo-Json) -ContentType "application/json"
 function CleanPmuOutputDirectory{
@@ -18,11 +18,12 @@ function LoadPmuIntoDatabase{
     [CmdletBinding()]
     param(
         [ValidateNotNullOrEmpty()][string]$Filename,
-        [ValidateNotNullOrEmpty()][string]$url
+        [ValidateNotNullOrEmpty()][string]$url,
+        [string] $path="."
         );
     process{
             $request_body=(@{
-                "filename"="$current_dir\output\$Filename"
+                "filename"="$current_dir\output\$path\$Filename"
             }|ConvertTo-Json)
 
             $request_url="$base_url$url"
@@ -31,12 +32,16 @@ function LoadPmuIntoDatabase{
         }
     }
 function LoadAllPmuIntoDatabase{
+    param(
+        [srting]$path
+    )
     process{
-        LoadPmuIntoDatabase -Filename "predicted.csv" -Url "load-predicted-into-db"
-        LoadPmuIntoDatabase -Filename "resultats_plat.csv" -Url "load-resultat-into-db"
-        LoadPmuIntoDatabase -Filename "resultats_trot_attele.csv" -Url "load-resultat-into-db"
-        LoadPmuIntoDatabase -Filename "resultats_trot_monte.csv" -Url "load-resultat-into-db"
-        LoadPmuIntoDatabase -Filename "resultats_obstacle.csv" -Url "load-resultat-into-db"
+        LoadPmuIntoDatabase -Path $path -Filename "predicted.csv" -Url "LoadPredictedIntoDb"
+        LoadPmuIntoDatabase -Path $path -Filename "resultats_plat.csv" -Url "LoadResultatIntoDb"
+        LoadPmuIntoDatabase -Path $path -Filename "resultats_trot_attele.csv" -Url "LoadResultatIntoDb"
+        LoadPmuIntoDatabase -Path $path -Filename "resultats_trot_monte.csv" -Url "LoadResultatIntoDb"
+        LoadPmuIntoDatabase -Path $path -Filename "resultats_obstacle.csv" -Url "LoadResultatIntoDb"
+        LoadPmuIntoDatabase -Path $path -Filename "courses.csv" -Url "LoadCourseIntoDb"
 
     }
 }
@@ -44,7 +49,8 @@ function LoadAllPmuIntoDatabase{
 function Invoke-LoadPmu{
     [CmdletBinding()]
     param(
-        [string]$start
+        [string]$start,
+        [srting]$path
         )
         begin{
             
@@ -77,7 +83,7 @@ function Invoke-LoadPmu{
             #retrieve resultat of yesterday
             python resultat.py start=$yesterday count=1
 
-            LoadAllPmuIntoDatabase
+            LoadAllPmuIntoDatabase -Path $path
         }
 }
 
