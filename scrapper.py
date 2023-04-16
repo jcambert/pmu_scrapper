@@ -71,6 +71,14 @@ class AbstractScrapper():
         # self._test=kwargs['test'] if 'test' in kwargs else False
         self._use_proxy,self._use_threading,self._test=use_proxy,use_threading,test
         self._fname= kwargs['fname'] if 'fname' in kwargs else None
+        if('logger' in kwargs):
+            self.logger=kwargs['logger']
+        else:
+            self.logger=logging
+        self._mode=kwargs['mode'] if 'mode' in kwargs else 'a'
+        
+    def get_save_mode(self):
+        return self._mode
     def _origins(self):
         url = 'http://httpbin.org/ip'
         o_p=json.loads(self._request(url,use_proxy=True).text)['origin']
@@ -82,13 +90,13 @@ class AbstractScrapper():
         return  (requests.get(url, proxies=PROXIES) if __use_proxy else  requests.get(url) )
     
     def _save(self,df,filename,mode='a'):
-        logging.info(f"Saving to {filename}")
+        self.logger.info(f"Saving to {filename}")
         if not self._test:
             writeHeader=not path.exists(filename) or mode=='w'
             df.to_csv(filename,sep=";",na_rep='',mode=mode,index=False,header=writeHeader)
         else:
-            logging.info("Mode Test=> No saving file action")
-        logging.info(f"{filename} saved")
+            self.logger.info("Mode Test=> No saving file action")
+        self.logger.info(f"{filename} saved")
     def _check(self):
         if self._use_proxy:
             o=self._origins()
@@ -128,22 +136,22 @@ class AbstractScrapper():
         end=self.get_end(current,**kwargs)
         sleep=int(kwargs['sleep']) if 'sleep' in kwargs else 500
         specialites = kwargs['specialites'] if 'specialites' in kwargs else None
-        logging.info(f"Start scrapping {self.__class__.__name__} from {get_date_from_pmu( start)} to {end} exclude")
+        self.logger.info(f"Start scrapping {self.__class__.__name__} from {get_date_from_pmu( start)} to {end} exclude")
         while current<end:
             try:
-                logging.info(f"Start day {current}")
+                self.logger.info(f"Start day {current}")
                 self._scrap(specialites, get_pmu_date(current ))
                 time.sleep(sleep/1000)
                 current=current+ timedelta(step)
             except Exception  as ex:
-                logging.warn(ex,exc_info=True)
-                logging.warn(f"an error happened while scrap {current}. go to next day")
+                self.logger.warn(ex,exc_info=True)
+                self.logger.warn(f"an error happened while scrap {current}. go to next day")
                 current=current+ timedelta(step)
         return (start,current,step)
 
     def _get_reunions(self,date,**kwargs):
 
-        logging.info(f"Get Reunion:{prg_url%date}")
+        self.logger.info(f"Get Reunion:{prg_url%date}")
         
         try:
             resp=self._request(prg_url % date)
@@ -155,12 +163,12 @@ class AbstractScrapper():
             df=pd.DataFrame(resp.json())
             return df
         except Exception as ex:
-            logging.warning(ex)
+            self.logger.warning(ex)
             return False
 
     def _get_participants(self,reunion,course,date,**kwargs):
     #     print(ptcp_url % (date,reunion,course))
-        logging.info(f"Get Participants {ptcp_url % (date,reunion,course)}")
+        self.logger.info(f"Get Participants {ptcp_url % (date,reunion,course)}")
         resp=self._request(ptcp_url % (date,reunion,course))
         as_json=kwargs['as_json'] if 'as_json' in kwargs else False
         if  as_json:
@@ -169,7 +177,7 @@ class AbstractScrapper():
         return df
 
     def _get_resultats(self,date,reunion,course,**kwargs):
-        logging.info(f"Get Resultat {resultat_url % (date,reunion,course)}")
+        self.logger.info(f"Get Resultat {resultat_url % (date,reunion,course)}")
         resp=self._request(resultat_url % (date,reunion,course)).json()
         as_json=kwargs['as_json'] if 'as_json' in kwargs else False
         if  as_json:
@@ -182,8 +190,8 @@ class ResultatScrapper(AbstractScrapper):
     def __init__(self,use_proxy=True,use_threading=True,test=False,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="resultats_%s.csv"
-    def get_save_mode(self):
-        return 'a'
+    # def get_save_mode(self):
+    #     return 'a'
     def _scrap(self,specialites,day):
         df_reunions=self._get_reunions(day,as_json=True)
         if isinstance(df_reunions,bool) and not df_reunions:
@@ -210,7 +218,7 @@ class ResultatScrapper(AbstractScrapper):
                 if specialites is  not None and specialite not in specialites:
                     continue
                 if self._use_threading:
-                    logging.info(f"Start reading resultat R{num_reunion}/C{num_course}")
+                    self.logger.info(f"Start reading resultat R{num_reunion}/C{num_course}")
                     
                     x = threading.Thread(target=self.__scrap_resulats, args=(day,num_reunion,num_course,resultats[specialite]))
                     threads.append(x)
@@ -220,7 +228,7 @@ class ResultatScrapper(AbstractScrapper):
                     scrap_resultats=self.__scrap_resulats(day,num_reunion,num_course)
                     if isinstance( scrap_resultats,DataFrame):
                         resultats[specialite].append(scrap_resultats)
-                    logging.info(f"End reading  resultat R{num_reunion}/C{num_course}")
+                    self.logger.info(f"End reading  resultat R{num_reunion}/C{num_course}")
             for index, thread in enumerate(threads):
                 thread.join()
         for spec in resultats:
@@ -258,7 +266,7 @@ class ResultatScrapper(AbstractScrapper):
                 df = df[df.pari.isin( ['E_SIMPLE_GAGNANT','E_SIMPLE_PLACE'])]
                 return df
         except Exception as ex:
-            logging.error(ex)
+            self.logger.error(ex)
             return False
 
 class HistoryScrapper(AbstractScrapper):
@@ -266,9 +274,11 @@ class HistoryScrapper(AbstractScrapper):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="participants_%s.csv"
         self._directory="history"
+        
+      
     def _scrap(self,specialites,day):
         day=get_pmu_date(day)
-        logging.info(f"Start scraping {get_date_from_pmu( day)}")
+        self.logger.info(f"Start scraping {get_date_from_pmu( day)}")
         participants={'TROT_MONTE':[],'TROT_ATTELE':[],'PLAT':[],'OBSTACLE':[]}
         df_reunions=self._get_reunions(day)
         if isinstance(df_reunions,bool) and not df_reunions:
@@ -285,8 +295,8 @@ class HistoryScrapper(AbstractScrapper):
                 if specialites is  not None and specialite not in specialites:
                     continue
                 if self._use_threading:
-                    logging.info(f"START REUNION {course['numReunion']}/{course['numExterne']}")
-                    logging.debug("Main    : create and start thread %d.", c_index)
+                    self.logger.info(f"START REUNION {course['numReunion']}/{course['numExterne']}")
+                    self.logger.debug("Main    : create and start thread %d.", c_index)
                     x = threading.Thread(target=self.__scrap_participants, args=(day,course,sub,participants[specialite]))
                     threads.append(x)
                     x.start()
@@ -295,19 +305,19 @@ class HistoryScrapper(AbstractScrapper):
                     subdf_ptcp=self.__scrap_participants(day,course,sub)
                     if subdf_ptcp:
                         participants[specialite].append(subdf_ptcp)
-                    logging.info(f"END REUNION {course['numReunion']}/{course['numExterne']}")
+                    self.logger.info(f"END REUNION {course['numReunion']}/{course['numExterne']}")
                 
             for index, thread in enumerate(threads):
-                logging.debug("Main    : before joining thread %d.", index)
+                self.logger.debug("Main    : before joining thread %d.", index)
                 thread.join()
-                logging.debug("Main    : thread %d done", index)
+                self.logger.debug("Main    : thread %d done", index)
 
         for spec in participants:
             if len(participants[spec])>0:
                 df_participants=pd.concat(participants[spec])
                 self._save( df_participants,path.join(self._directory,self.get_filename() % spec.lower()),self.get_save_mode())
 
-        logging.info(f"End scrapping day:{day}")
+        self.logger.info(f"End scrapping day:{day}")
     def __scrap_participants(self,day,course,sub,result=False):
         try:
             subdf_ptcp=self._get_participants(course['numReunion'],course['numExterne'],day)
@@ -356,18 +366,18 @@ class HistoryScrapper(AbstractScrapper):
             col_ex=subdf_ptcp.columns.tolist()
             col_to=['date','reunion','course','hippo_code','hippo_nom', 'nom','numPmu','rapport','age','sexe','race','statut','oeilleres','deferre','indicateurInedit','musique','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','ordreArrivee','distance','handicapDistance','gain_carriere'	,'gain_victoires'	,'gain_places'	,'gain_annee_en_cours',	'gain_annee_precedente','placeCorde','handicapValeur','handicapPoids']
             for col in filter(lambda x: x not in col_ex ,col_to) :
-                logging.warning(f"{col} does not exist in dataframe")
+                self.logger.warning(f"{col} does not exist in dataframe")
             
             if not 'ordreArrivee' in subdf_ptcp:
                 subdf_ptcp['ordreArrivee']=0
             subdf_ptcp=subdf_ptcp[col_to]
             if isinstance(result,list):
                 result.append(subdf_ptcp)
-                logging.info(f"END REUNION {course['numReunion']}/{course['numExterne']}")
+                self.logger.info(f"END REUNION {course['numReunion']}/{course['numExterne']}")
             else:
                 return subdf_ptcp
         except Exception as ex:
-            logging.error(ex)
+            self.logger.error(ex)
             return False
 
 class ToPredictScrapper(HistoryScrapper):
@@ -377,5 +387,5 @@ class ToPredictScrapper(HistoryScrapper):
         self._directory="input"
     def get_default_start_date(self):
         return get_today()
-    def get_save_mode(self):
-        return 'a'
+    # def get_save_mode(self):
+    #     return 'a'

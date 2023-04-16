@@ -13,26 +13,27 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Predict today",
+            "name": "Predict Scrapped",
             "type": "python",
             "request": "launch",
             "program": "predicter.py",
+            "args": ["mode=w"],
             "console": "integratedTerminal"
         },
         {
-            "name": "Resultat Yesterday",
+            "name": "Resultat For Date",
             "type": "python",
             "request": "launch",
             "program": "resultat.py",
-            "args": ["start=01012023","end=01022023"],
+            "args": ["start=01032023","end=01042023"],
             "console": "integratedTerminal"
         },
         {
-            "name": "Scrap Today",
+            "name": "Scrap To Predict",
             "type": "python",
             "request": "launch",
             "program": "scrap.py",
-            "args": ["start=01012023","end=01022023"],
+            "args": ["start=01042023","end=02042023","mode=w"],
             "console": "integratedTerminal"
         },
         {

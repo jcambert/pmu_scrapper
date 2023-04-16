@@ -2,11 +2,12 @@ import logging
 import time
 import sys
 from scrapper import  ResultatScrapper,get_yesterday,get_pmu_date
+from logger import configure_logging
 
 if __name__=="__main__":
 
-    format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO,datefmt="%H:%M:%S")
+    log=configure_logging("Resultat")
+   
 
     specialites=None
     use_proxy=False
@@ -17,8 +18,8 @@ if __name__=="__main__":
         args['start']=get_pmu_date(get_yesterday())
 
     #specialites=['PLAT']
-    scrapper=ResultatScrapper(use_proxy=use_proxy,use_threading=True,test=False)
+    scrapper=ResultatScrapper(use_proxy=use_proxy,use_threading=True,test=False,logger=log,**args)
 
     scrapper.start(specialites=specialites,**args)
 
-    logging.info(f"it's took {(time.time() - start_time)} seconds\nBye...")
+    log.info(f"it's took {(time.time() - start_time)} seconds\nBye...")

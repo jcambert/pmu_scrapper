@@ -1,4 +1,5 @@
 from operator import indexOf
+import sys
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -28,6 +29,9 @@ from sklearn.compose import make_column_selector, make_column_transformer
 from sklearn.feature_selection import RFE,RFECV,VarianceThreshold
 from sklearn.model_selection import  learning_curve
 from sklearn.metrics import confusion_matrix
+
+from logger import configure_logging
+
 HEADER_COLUMNS=['date','reunion','course','nom']
 NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
 CATEGORICAL_FEATURES=['hippo_code','deferre']
@@ -189,9 +193,11 @@ models={
 
 }
 
+
+
 if __name__=='__main__':
-    format = "%(asctime)s: %(message)s"
-    logging.basicConfig(format=format, level=logging.INFO,datefmt="%H:%M:%S")
+    args=dict(arg.split('=') for arg in sys.argv[1:])
+    log= configure_logging("Predicter")
     
     filter_by_hippo_code=False
 
@@ -211,12 +217,12 @@ if __name__=='__main__':
     output_df=pd.DataFrame(columns=output_columns)
     for key,file in training_files.items():
         try:
-            logging.info(f"Start prediction for {key}")
+            log.info(f"Start prediction for {key}")
 
             to_predict,courses,chevaux=load_file(os.path.join("input", f"topredict_{file}.csv"),is_predict=True)
             has_models,saved_models=load_classifiers_for_type_course(file)
             if not has_models:
-                logging.info(f"{file} has no model=> create model train")
+                log.info(f"{file} has no model=> create model train")
                 features,targets=load_file(os.path.join("history", f"participants_{file}.csv"))
                 if not filter_by_hippo_code:
                     models_,features_train, features_test, targets_train, targets_test =train(features,targets,test_size=0.05,shuffle=True)
@@ -231,7 +237,7 @@ if __name__=='__main__':
                     models[hippo_code]['targets_train']=targets_train
                     models[hippo_code]['targets_test']=targets_test
             else:
-                logging.info(f"{file} has a model to predict")
+                log.info(f"{file} has a model to predict")
                 if not filter_by_hippo_code:
                     hippo_code='all'
                     models[hippo_code]={}
@@ -260,7 +266,7 @@ if __name__=='__main__':
                         models[hippo_code]['model']=saved_models
 
                 participants_=to_predict[(to_predict['date']==d) & (to_predict['reunion']==r) & (to_predict['course']==c)]
-                logging.info(f"Try to predict some Number for Date:{d} - Reunion:{r} - Course:{c}")
+                log.info(f"Try to predict some Number for Date:{d} - Reunion:{r} - Course:{c}")
                 participants=participants_[NUMERICAL_FEATURES+  CATEGORICAL_FEATURES+CALCULATED_FEATURES]
                 
                 try:
@@ -289,24 +295,25 @@ if __name__=='__main__':
                             if print_result:
                                 for z in range(count):
                                     t=res.iloc[z]
-                                    print(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé -> Classifier:{key_}" )
+                                    log.info(f"R{r}/C{c} -> {t.nom}[{t.rapport}] {t.numPmu} placé -> Classifier:{key_}" )
                         elif count==0 and print_result:      
-                            print(f"R{r}/C{c} -> aucune prediction")
+                            log.info(f"R{r}/C{c} -> aucune prediction")
                 except Exception as ex:
-                    logging.warning(ex)
+                    log.warning(ex)
                 
         except FileNotFoundError as fnf_error:
-            logging.warning(f'{fnf_error}. Prediction is impossible')
+            log.warning(f'{fnf_error}. Prediction is impossible')
             pass
         except Exception as ex:
-            logging.warning(ex)
+            log.warning(ex)
     if save_to_file:
         output_df=output_df.sort_values(by=['date','reunion','course'])
         def save_fn():
-            filename=os.path.join("output", f"predicted.csv");
-            mode='a'
+            filename=os.path.join("output", f"predicted.csv")
+            mode=args['mode'] if 'mode' in args else 'a'
+            
             writeHeader=not path.exists(filename) or mode=='w'
-            output_df.to_csv(filename,header=False,sep=";",mode=mode)
+            output_df.to_csv(filename,header=writeHeader,sep=";",mode=mode,index=False,na_rep='')
             
             output_df.to_html(os.path.join("output", f"predicted.html"),header=True,justify='left',border=1)
 
@@ -315,20 +322,3 @@ if __name__=='__main__':
         except PermissionError as e:
             save_fn()
 
-# class Predicter():
-#     def __init__(self,use_threading=True,test=False,**kwargs) -> None:
-#         self._use_threading,self._test=use_threading,test
-#         self._fname= kwargs['fname'] if 'fname' in kwargs else None
-#         self._print_confusion_matrix=kwargs['print_confusion_matrix'] if 'print_confusion_matrix' in kwargs else False
-#         self._print_training_score=kwargs['print_training_score'] if 'print_training_score' in kwargs else False
-#         self._print_result=kwargs['print_result'] if 'print_result' in kwargs else False
-
-#     def train(self,features,targets,test_size=0.3,random_state=5,shuffle=False):
-#         classifier=SGDClassifier(random_state=random_state,loss='squared_hinge',shuffle=True,learning_rate='optimal')
-#         features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
-#         numerical_pipeline=make_pipeline(SimpleImputer(fill_value=0), RobustScaler())
-#         categorical_pipeline=(make_pipeline(OneHotEncoder(handle_unknown = 'ignore')))
-#         preprocessor=make_column_transformer(
-#         (numerical_pipeline,NUMERICAL_FEATURES),
-#         (categorical_pipeline,CATEGORICAL_FEATURES))
-#         model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.1),classifier)
