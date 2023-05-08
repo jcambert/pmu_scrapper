@@ -21,7 +21,7 @@ if __name__=="__main__":
         args['start']=get_pmu_date(get_today())
 
 
-    scrapper=HistoryScrapper(use_proxy=use_proxy,use_threading=True,test=False)
+    scrapper=HistoryScrapper(use_proxy=use_proxy,use_threading=True,test=False,**args)
     scrapper.start(specialites=specialites,**args)
 
     logging.info(f"it's took {(time.time() - start_time)} seconds\nBye...")

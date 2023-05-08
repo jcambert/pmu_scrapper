@@ -207,19 +207,16 @@ if __name__=='__main__':
     print_result=True
     training_files={'trot attele':'trot_attele','plat':'plat','trot monte':'trot_monte','obstacle':'obstacle'}
     filter_max_horse_count_by_course=3
-    # training_files={'trot attele':'trot_attele'}
-    # training_files={'plat':'plat'}
-    # training_files=['participants_trot_attele']  
+    usefolder=args['usefolder'] if 'usefolder' in args else ''
 
     output={'date':[],'reunion':[],'course':[],'nom':[],'rapport':[],'numPmu':[],'state':[]}    
-    # output_columns=['date','hippo_code','reunion','course','specialite','nom','rapport','numPmu','state','resultat_place','resultat_rapport','gain_brut','gain_net']
     output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
     output_df=pd.DataFrame(columns=output_columns)
     for key,file in training_files.items():
         try:
             log.info(f"Start prediction for {key}")
 
-            to_predict,courses,chevaux=load_file(os.path.join("input", f"topredict_{file}.csv"),is_predict=True)
+            to_predict,courses,chevaux=load_file(os.path.join("input", usefolder,f"topredict_{file}.csv"),is_predict=True)
             has_models,saved_models=load_classifiers_for_type_course(file)
             if not has_models:
                 log.info(f"{file} has no model=> create model train")
@@ -307,15 +304,24 @@ if __name__=='__main__':
         except Exception as ex:
             log.warning(ex)
     if save_to_file:
+        
+
         output_df=output_df.sort_values(by=['date','reunion','course'])
         def save_fn():
-            filename=os.path.join("output", f"predicted.csv")
+            folder=os.path.join("output",usefolder)
+            if not os.path.exists(folder):
+                os.makedirs(folder)
+
+            filename=os.path.join(folder,f"predicted.csv")
             mode=args['mode'] if 'mode' in args else 'a'
             
             writeHeader=not path.exists(filename) or mode=='w'
+
+           
+
             output_df.to_csv(filename,header=writeHeader,sep=";",mode=mode,index=False,na_rep='')
             
-            output_df.to_html(os.path.join("output", f"predicted.html"),header=True,justify='left',border=1)
+            output_df.to_html(os.path.join(folder, f"predicted.html"),header=True,justify='left',border=1)
 
         try:
             save_fn()

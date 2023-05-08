@@ -76,7 +76,7 @@ class AbstractScrapper():
         else:
             self.logger=logging
         self._mode=kwargs['mode'] if 'mode' in kwargs else 'a'
-        
+        self._usefolder=kwargs['usefolder'] if 'usefolder' in kwargs else ''
     def get_save_mode(self):
         return self._mode
     def _origins(self):
@@ -127,6 +127,7 @@ class AbstractScrapper():
         start=get_pmu_date(start)
         current=get_date_from_pmu( start)
         step=int(kwargs['step']) if 'step' in kwargs else 1
+        
         if 'count' in kwargs:
             count = int(kwargs['count'])
         else:
@@ -234,11 +235,11 @@ class ResultatScrapper(AbstractScrapper):
         for spec in resultats:
             if len(resultats[spec])>0:
                 df_resultats=pd.concat(resultats[spec])
-                self._save(df_resultats,path.join("output", self.get_filename() % spec.lower()),self.get_save_mode())
+                self._save(df_resultats,path.join("output",self._usefolder, self.get_filename() % spec.lower()),self.get_save_mode())
 
         courses=courses[['numReunion','numOrdre','libelle','libelleCourt','montantPrix','distance','distanceUnit','discipline','specialite','nombreDeclaresPartants','ordreArrivee','hippoCode','hippoCourt','hippoLong']]
         courses['date']=get_date_from_pmu(day)
-        self._save(courses,path.join("output", "courses.csv"),self.get_save_mode())
+        self._save(courses,path.join("output",self._usefolder, "courses.csv"),self.get_save_mode())
     def __scrap_resulats(self,day,reunion,course,result=False):
         lines=[]
         try:
@@ -315,7 +316,7 @@ class HistoryScrapper(AbstractScrapper):
         for spec in participants:
             if len(participants[spec])>0:
                 df_participants=pd.concat(participants[spec])
-                self._save( df_participants,path.join(self._directory,self.get_filename() % spec.lower()),self.get_save_mode())
+                self._save( df_participants,path.join(self._directory,self.get_filename() % spec.lower(),self._usefolder),self.get_save_mode())
 
         self.logger.info(f"End scrapping day:{day}")
     def __scrap_participants(self,day,course,sub,result=False):
