@@ -243,27 +243,31 @@ class ResultatScrapper(AbstractScrapper):
     def __scrap_resulats(self,day,reunion,course,result=False):
         lines=[]
         try:
+            self.logger.info(f'Try scrap resultat for  Reunion:{reunion} Course:{course} ')
             resultats=self._get_resultats(day,reunion,course,as_json=True)
             
             for resultat in resultats:
                 mise_base=int(resultat['miseBase'])
                 libelle=resultat['typePari']
                 for rapport in resultat['rapports']:
-                    dividende=rapport['dividendePourUneMiseDeBase']
+                    dividende=rapport['dividendePourUnEuro']
                     for combinaison in rapport['combinaison']:
                         try:
                             numPmu=int(combinaison)
-                            line=(get_date_from_pmu(day) ,reunion,course,libelle,numPmu,dividende/mise_base)
+                            line=(get_date_from_pmu(day) ,reunion,course,libelle,numPmu,dividende/100)
                             lines.append(line)
                         except ValueError:
                             pass
-                
+            
+            mapping = {'SIMPLE_GAGNANT_INTERNATIONAL':'E_SIMPLE_GAGNANT','E_SIMPLE_GAGNANT':'E_SIMPLE_GAGNANT','SIMPLE_PLACE_INTERNATIONAL':'E_SIMPLE_PLACE','E_SIMPLE_PLACE':'E_SIMPLE_PLACE'}
             if isinstance(result,list):
                 df_lines=pd.DataFrame(lines,columns=['date','reunion','course','pari','numPmu','rapport'])
+                df_lines['pari']=  df_lines['pari'].map(mapping)
                 df_lines = df_lines[df_lines.pari.isin (['E_SIMPLE_GAGNANT','E_SIMPLE_PLACE'])]
                 result.append( df_lines)
             else:
                 df= pd.DataFrame(lines,columns=['date','reunion','course','pari','numPmu','rapport'])
+                df['pari']=  df['pari'].map(mapping)
                 df = df[df.pari.isin( ['E_SIMPLE_GAGNANT','E_SIMPLE_PLACE'])]
                 return df
         except Exception as ex:

@@ -25,7 +25,8 @@
             "type": "python",
             "request": "launch",
             "program": "resultat.py",
-            "args": ["start=01042023","end=30042023","usefolder=04 2023"],
+            "args": ["start=01042023","end=01052023","usefolder=04 2023"],
+            //"args": ["start=08012023","end=09012023"],
             "console": "integratedTerminal"
         },
         {
