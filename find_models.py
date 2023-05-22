@@ -1,3 +1,4 @@
+import json
 import sys
 import re
 import numpy as np
@@ -33,13 +34,29 @@ MODEL_PATH='models_test'
 def load_classifier(name,type_course):
     if not has_classifier(name,type_course):
         return False
-    return load(os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
+    return load(os.path.join(dir_path, MODEL_PATH, f'{name}_{type_course}.model'))
 
 def save_classifier(name,type_course,classifier):
-    dump(classifier,os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
+    path=os.path.join(dir_path, MODEL_PATH)
+    if(not os.path.exists(path)):
+        os.mkdir(path)
+    file=os.path.join(path, f'{name}_{type_course}.model')
+    if(os.path.isfile(file)):
+        os.remove(file)
+    dump(classifier,file)
+
+def save_classifier_params(name,type_course,params):
+    path=os.path.join(dir_path, MODEL_PATH)
+    if(not os.path.exists(path)):
+        os.mkdir(path)
+    file=os.path.join(path, f'{name}_{type_course}.json')
+    if(os.path.isfile(file)):
+        os.remove(file)
+    with open(file, "w") as fp:
+        json.dump(params,fp) 
 
 def has_classifier(name,type_course):
-    return os.path.isfile(os.path.join(MODEL_PATH, f'{name}_{type_course}.model'))
+    return os.path.isfile(os.path.join(dir_path,MODEL_PATH, f'{name}_{type_course}.model'))
 
 
 music_pattern='([0-9,D,T,A,R][a,m,h,s,c,p,o]){1}'
@@ -100,22 +117,21 @@ def create_pipelined_model(model):
     return model
 
 def search_best(model,params,features_train,targets_train,cv=5,use_pipeline=True):
-    name=model.__class__.__name__.lower()
+    this_name=model.__class__.__name__.lower()
     params_grid={}
 
     if(use_pipeline):
         this_model=create_pipelined_model(model)
-        this_params=dict(( name+"__"+k,v) for k,v in params.items())
+        this_params=dict(( this_name+"__"+k,v) for k,v in params.items())
     else:
         this_model=model
         this_params=params
     this_params.update(params_grid)
-    grid=GridSearchCV(this_model,this_params,cv=cv)
+    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=2,n_jobs=-1)
     grid.fit(features_train,targets_train)
-    p=grid.best_params_
-    # print(p)
-    model=grid.best_estimator_
-    return model,p,name
+    this_params=grid.best_params_
+    this_model=grid.best_estimator_
+    return this_model,this_params,this_name
 
 
 def get_models_to_find_best():
@@ -124,15 +140,18 @@ def get_models_to_find_best():
     # ALLREADY TESTED
     # {'sgdclassifier__learning_rate': 'optimal', 'sgdclassifier__loss': 'modified_huber', 'sgdclassifier__penalty': 'elasticnet'})
     # {'kneighborsclassifier__metric': 'kulsinski', 'kneighborsclassifier__n_neighbors': 18}
-    models.append([SGDClassifier(),{'learning_rate':['constant','optimal','invscaling','adaptive'], 'loss':['hinge','log_loss', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_error', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive'], 'penalty':['l2', 'l1', 'elasticnet',]}])
-    models.append([KNeighborsClassifier(),{'metric': ['euclidean','kulsinski','manhattan'],'n_neighbors':np.arange(1,20),}])
+    # {'adaboostclassifier__algorithm': 'SAMME', 'adaboostclassifier__learning_rate': 1.0, 'adaboostclassifier__n_estimators': 70}
+    # models.append([SGDClassifier(),{'learning_rate':['constant','optimal','invscaling','adaptive'], 'loss':['hinge','log_loss', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_error', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive'], 'penalty':['l2', 'l1', 'elasticnet',]}])
+    # models.append([KNeighborsClassifier(),{'metric': ['euclidean','kulsinski','manhattan'],'n_neighbors':np.arange(1,20),}])
 
     # TO TESTING
-    # models.append([SGDClassifier(),{'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_error', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
-    # models.append([KNeighborsClassifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
+    # {'adaboostclassifier__algorithm': 'SAMME.R', 'adaboostclassifier__learning_rate': 0.5, 'adaboostclassifier__n_estimators': 30}
 
-    models.append([AdaBoostClassifier(),{'n_estimators':np.arange(1,100,5),'learning_rate':np.arange(0.5,10,0.5),'algorithm':['SAMME','SAMME.R']}])
-    models.append([DecisionTreeClassifier(),{'criterion':['gini','entropy','log_loss'],'max_features':['auto','sqrt','log2']}])
+
+    models.append([SGDClassifier(),{'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_error', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
+    models.append([KNeighborsClassifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
+    models.append([AdaBoostClassifier(),{'n_estimators':np.arange(10,100,10),'learning_rate':np.arange(0.5,5,0.5,np.single),'algorithm':['SAMME','SAMME.R']}])
+    models.append([DecisionTreeClassifier(),{'criterion':['gini','entropy'],'max_features':['auto','sqrt','log2']}])
 
 
 
@@ -157,7 +176,6 @@ def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuf
         print('best name',best_name)
         print('best model:',best_model.score(features_test,targets_test))
         print('best params:',best_params)
-        
         bests.append({'name':best_name ,'model':best_model,'params':best_params})
     return bests
 
@@ -184,17 +202,18 @@ def get_history_files():
         if not name is None:
             files[name[1]]=os.path.join(dir_path,'history', f)
     return files
-if __name__=="__main__":
 
+if __name__=="__main__":
     files=get_history_files()
     for this_type_course,file in files.items():
         features,targets=load_csv_file(file,nrows=100000)
         models=find_best_models( get_models_to_find_best(),features=features,targets=targets)
         for model in models:
-            this_model=model.model
-            this_name=model.name
+            this_model=model['model']
+            this_name=model['name']
+            this_params=model['params']
             save_classifier(this_name,this_type_course,this_model)
-
+            save_classifier_params(this_name,this_type_course,this_params)
     # features,targets=load_csv_file('E:\projets\pmu_scrapper\history\participants_trot_attele.csv',nrows=10000)
     # models=find_best_models( get_models_to_find_best(),features=features,targets=targets)
     pass
