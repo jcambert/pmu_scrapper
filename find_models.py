@@ -14,6 +14,7 @@ from sklearn.impute import SimpleImputer
 from sklearn.linear_model import SGDClassifier
 from sklearn.model_selection import *
 from sklearn.neighbors import KNeighborsClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, RobustScaler
 from sklearn.tree import DecisionTreeClassifier
@@ -45,6 +46,13 @@ def save_classifier(name,type_course,classifier):
         os.remove(file)
     dump(classifier,file)
 
+def has_classifier(name,type_course):
+    return os.path.isfile(os.path.join(dir_path,MODEL_PATH, f'{name}_{type_course}.model'))
+
+def json_type_converter(value):
+    if isinstance(value, np.generic): return value.item()  
+    return value
+
 def save_classifier_params(name,type_course,params):
     path=os.path.join(dir_path, MODEL_PATH)
     if(not os.path.exists(path)):
@@ -52,11 +60,13 @@ def save_classifier_params(name,type_course,params):
     file=os.path.join(path, f'{name}_{type_course}.json')
     if(os.path.isfile(file)):
         os.remove(file)
-    with open(file, "w") as fp:
-        json.dump(params,fp) 
+    try:
+        with open(file, "w") as fp:
+            json.dump(params,fp, default=json_type_converter) 
+    except :
+        print('ERROR====>')
+        print( sys.exc_info()[0] )
 
-def has_classifier(name,type_course):
-    return os.path.isfile(os.path.join(dir_path,MODEL_PATH, f'{name}_{type_course}.model'))
 
 
 music_pattern='([0-9,D,T,A,R][a,m,h,s,c,p,o]){1}'
@@ -127,7 +137,7 @@ def search_best(model,params,features_train,targets_train,cv=5,use_pipeline=True
         this_model=model
         this_params=params
     this_params.update(params_grid)
-    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=2,n_jobs=-1)
+    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=2,n_jobs=2)
     grid.fit(features_train,targets_train)
     this_params=grid.best_params_
     this_model=grid.best_estimator_
@@ -137,21 +147,15 @@ def search_best(model,params,features_train,targets_train,cv=5,use_pipeline=True
 def get_models_to_find_best():
     models=[]
 
-    # ALLREADY TESTED
-    # {'sgdclassifier__learning_rate': 'optimal', 'sgdclassifier__loss': 'modified_huber', 'sgdclassifier__penalty': 'elasticnet'})
-    # {'kneighborsclassifier__metric': 'kulsinski', 'kneighborsclassifier__n_neighbors': 18}
-    # {'adaboostclassifier__algorithm': 'SAMME', 'adaboostclassifier__learning_rate': 1.0, 'adaboostclassifier__n_estimators': 70}
-    # models.append([SGDClassifier(),{'learning_rate':['constant','optimal','invscaling','adaptive'], 'loss':['hinge','log_loss', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_error', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive'], 'penalty':['l2', 'l1', 'elasticnet',]}])
-    # models.append([KNeighborsClassifier(),{'metric': ['euclidean','kulsinski','manhattan'],'n_neighbors':np.arange(1,20),}])
-
-    # TO TESTING
-    # {'adaboostclassifier__algorithm': 'SAMME.R', 'adaboostclassifier__learning_rate': 0.5, 'adaboostclassifier__n_estimators': 30}
-
-
-    models.append([SGDClassifier(),{'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'squared_error', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
-    models.append([KNeighborsClassifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
-    models.append([AdaBoostClassifier(),{'n_estimators':np.arange(10,100,10),'learning_rate':np.arange(0.5,5,0.5,np.single),'algorithm':['SAMME','SAMME.R']}])
-    models.append([DecisionTreeClassifier(),{'criterion':['gini','entropy'],'max_features':['auto','sqrt','log2']}])
+    
+    # models.append([SGDClassifier(),{'eta0':np.arange(0.1,0.9,0.3), 'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
+    # alerady tested Obstacle
+    # models.append([KNeighborsClassifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
+    # models.append([AdaBoostClassifier(),{'n_estimators':np.arange(10,100,10),'learning_rate':np.arange(0.5,5,0.5,np.single),'algorithm':['SAMME','SAMME.R']}])
+    
+    models.append([MLPClassifier(),{'hidden_layer_sizes':[100],'activation':['identity', 'logistic', 'tanh', 'relu'],'solver':['lbfgs', 'sgd', 'adam'],'learning_rate':['constant', 'invscaling', 'adaptive'],'early_stopping':[True]}])
+    
+    # models.append([DecisionTreeClassifier(),{'criterion':['gini','entropy'],'max_features':['auto','sqrt','log2']}])
 
 
 
@@ -206,7 +210,7 @@ def get_history_files():
 if __name__=="__main__":
     files=get_history_files()
     for this_type_course,file in files.items():
-        features,targets=load_csv_file(file,nrows=100000)
+        features,targets=load_csv_file(file,nrows=200000)
         models=find_best_models( get_models_to_find_best(),features=features,targets=targets)
         for model in models:
             this_model=model['model']

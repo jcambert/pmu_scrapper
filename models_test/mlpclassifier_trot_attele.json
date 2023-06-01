@@ -1,0 +1,1 @@
+{"mlpclassifier__activation": "logistic", "mlpclassifier__early_stopping": true, "mlpclassifier__hidden_layer_sizes": 100, "mlpclassifier__learning_rate": "constant", "mlpclassifier__solver": "lbfgs"}

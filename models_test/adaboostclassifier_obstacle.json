@@ -1,0 +1,1 @@
+{"adaboostclassifier__algorithm": "SAMME", "adaboostclassifier__learning_rate": 1.0, "adaboostclassifier__n_estimators": 70}

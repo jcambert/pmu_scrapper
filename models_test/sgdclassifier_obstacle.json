@@ -1,0 +1,1 @@
+{"sgdclassifier__eta0": 0.7000000000000001, "sgdclassifier__learning_rate": "adaptive", "sgdclassifier__loss": "huber", "sgdclassifier__penalty": "l2"}
