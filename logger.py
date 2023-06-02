@@ -8,7 +8,7 @@ def configure_logging(name):
     formatter = logging.Formatter('[%(asctime)s %(name)s %(levelname)s] %(message)s',"%H:%M:%S")
     log = logging.getLogger(name)                                          
     handler = logging.StreamHandler(sys.stdout)                             
-    handler.setLevel(logging.INFO)                                        
+    handler.setLevel(logging.DEBUG)                                        
     handler.setFormatter(formatter)                   
     log.addHandler(handler)  
     return log

@@ -6,6 +6,7 @@
 **/*.xls?
 partic*.*
 **/*.model
+!**/models_test/*.*
 **/~*.*
 predicted.csv
 **/__pycache__/scrapper.*.pyc
