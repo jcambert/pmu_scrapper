@@ -3,7 +3,7 @@ import sys
 import re
 import numpy as np
 import pandas as pd
-import os.path
+import os
 from logger import configure_logging
 from operator import indexOf
 from joblib import dump,load
@@ -18,7 +18,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, RobustScaler
 from sklearn.tree import DecisionTreeClassifier
-
+from common import PATHES
 
 
 HEADER_COLUMNS=['date','reunion','course','nom']
@@ -31,8 +31,6 @@ TARGETS=['ordreArrivee']
 FEATURES=NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES
 
 
-_base_dir= os.path.dirname(os.path.realpath(__file__))
-PATHES={'base':_base_dir, 'model':os.path.join(_base_dir, 'models_test'),'input':os.path.join(_base_dir, 'input'),'output':os.path.join(_base_dir, 'output'),'history':os.path.join(_base_dir, 'history')}
 
 SUPPORTED_CLASSIFIERS=(AdaBoostClassifier,RidgeClassifier,SGDClassifier,MLPClassifier,KNeighborsClassifier,DecisionTreeClassifier)
 SUPPORTED_COURSES=['trot_attele','trot_monte','plat','obstacle']
@@ -40,10 +38,11 @@ SUPPORTED_COURSES=['trot_attele','trot_monte','plat','obstacle']
 
 
 
-def load_classifier(name,type_course):
-    file=has_classifier(name,type_course,'model')
-    if file:
-        return load(file),True
+def load_classifier(name,type_course,from_params=False):
+    if not from_params:
+        file=has_classifier(name,type_course,'model')
+        if file:
+            return load(file),True
     
     file= has_classifier(name,type_course,'json')
     if file:
@@ -51,7 +50,7 @@ def load_classifier(name,type_course):
             this_params=json.load(fp)
             this_params=dict(( k.replace(f'{name}__',''),v) for k,v in this_params.items())
         cls= [ c for c in SUPPORTED_CLASSIFIERS if c.__name__.lower()==name]
-        this_cls=cls[0](this_params)
+        this_cls=cls[0](**this_params)
         return create_pipelined_model(this_cls),False
     return False,False
 
@@ -88,6 +87,27 @@ def save_classifier_params(name,type_course,params):
     except :
         print('ERROR====>')
         print( sys.exc_info()[0] )
+
+def load_classifier_with_params():
+    path=PATHES['model']
+    classifiers = {}
+    ff= os.listdir(path) 
+    for f in ff:
+        n=os.path.basename(f)
+        name=re.search(r'(\w*)classifier_([a-z_a-z*]*).json',n)
+        if name:
+            classifier=name[1]
+            course=name[2]
+            c=load_classifier(f'{classifier}classifier',course,True)
+            if c:
+                classifiers[name[1]]=c[0]
+        # if not name is None:
+        #     with open(os.path.join(path,f), "r") as fp:
+        #         this_params=json.load( fp)
+        #         this_params=dict(( k.replace(f'{classifier}classifier__',''),v) for k,v in this_params.items())
+        #     files[name[1]]=this_params
+    return classifiers
+
 
 
 
@@ -266,7 +286,8 @@ def predicter(**args):
     # files=get_files(PATHES['input'],'topredict','trot_attele')
 
     classifiers=get_classifiers(**args)
-    files=get_files(PATHES['input'],'topredict',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
+    directory=os.path.join(PATHES['input'],usefolder)
+    files=get_files( directory,'topredict',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
 
     def internal_save(df):
         mode=args['mode'] if 'mode' in args else 'a'
@@ -347,6 +368,14 @@ def predicter(**args):
             internal_save(output_df)
 
 def trainer(**args):
+    classifiers=load_classifier_with_params()
+    files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
+    nrows=args['nrows'] if 'nrows' in args else DEFAULT_NROWS
+    for this_type_course,file in files.items():
+        features,targets=load_csv_file(file,nrows=nrows)
+        for index,(this_name,this_model) in enumerate(classifiers.items()):
+            train(this_model,features=features,targets=targets)
+            save_classifier(f'{this_name}classifier',this_type_course,this_model)
     pass
 
 MODES=['predicter' , 'trainer' , 'finder']
@@ -354,13 +383,13 @@ DEFAULT_NROWS=200000
 if __name__=="__main__":
     args=dict(arg.split('=') for arg in sys.argv[1:])
 
-    mode=args['mode'] if 'mode' in args else 'predicter'
-    log= configure_logging(mode)
+    func=args['func'] if 'func' in args else 'trainer'
+    log= configure_logging(func)
 
     try:
-        if mode not in MODES:
-            raise KeyError(f'le mode {mode} n\'est pas supporté')
-        locals()[mode](**args)
+        if func not in MODES:
+            raise KeyError(f'le mode {func} n\'est pas supporté')
+        locals()[func](**args)
     except KeyError as e:
         log.fatal(str(e))
     except Exception as e:

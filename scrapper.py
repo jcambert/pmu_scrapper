@@ -7,9 +7,9 @@ import numpy as np
 import logging
 import time
 import threading
-from os import error, path
+from os import error, path,mkdir
 from datetime import datetime,  timedelta,date
-
+from common import PATHES
 PROXIES = {
     'http': 'socks5://localhost:9050',
     'https': 'socks5://localhost:9050'
@@ -91,6 +91,11 @@ class AbstractScrapper():
     
     def _save(self,df,filename,mode='a'):
         self.logger.info(f"Saving to {filename}")
+        directory=path.dirname(filename)
+
+        if(not path.exists(directory)):
+            mkdir(directory) 
+
         if not self._test:
             writeHeader=not path.exists(filename) or mode=='w'
             df.to_csv(filename,sep=";",na_rep='',mode=mode,index=False,header=writeHeader)
@@ -235,11 +240,12 @@ class ResultatScrapper(AbstractScrapper):
         for spec in resultats:
             if len(resultats[spec])>0:
                 df_resultats=pd.concat(resultats[spec])
-                self._save(df_resultats,path.join("output",self._usefolder, self.get_filename() % spec.lower()),self.get_save_mode())
+                self._save(df_resultats,path.join(PATHES['output'],self._usefolder, self.get_filename() % spec.lower()),self.get_save_mode())
 
         courses=courses[['numReunion','numOrdre','libelle','libelleCourt','montantPrix','distance','distanceUnit','discipline','specialite','nombreDeclaresPartants','ordreArrivee','hippoCode','hippoCourt','hippoLong']]
         courses['date']=get_date_from_pmu(day)
-        self._save(courses,path.join("output",self._usefolder, "courses.csv"),self.get_save_mode())
+        filename=path.join(PATHES['output'],self._usefolder, "courses.csv")
+        self._save(courses,filename,self.get_save_mode())
     def __scrap_resulats(self,day,reunion,course,result=False):
         lines=[]
         try:
@@ -278,7 +284,7 @@ class HistoryScrapper(AbstractScrapper):
     def __init__(self,use_proxy=True,use_threading=True,test=False,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="participants_%s.csv"
-        self._directory="history"
+        self._directory=PATHES['history']
         
       
     def _scrap(self,specialites,day):
@@ -321,7 +327,7 @@ class HistoryScrapper(AbstractScrapper):
         for spec in participants:
             if len(participants[spec])>0:
                 df_participants=pd.concat(participants[spec])
-                filename=path.join(self._directory,self.get_filename() % spec.lower(),self._usefolder) if len(self._usefolder)>0 else path.join(self._directory,self.get_filename() % spec.lower())
+                filename=path.join(self._directory,self._usefolder,self.get_filename() % spec.lower()) 
                 self._save( df_participants,filename,self.get_save_mode())
 
         self.logger.info(f"End scrapping day:{day}")
@@ -391,7 +397,7 @@ class ToPredictScrapper(HistoryScrapper):
     def __init__(self,use_proxy,use_threading,test,**kwargs):
         super().__init__(use_proxy,use_threading,test,**kwargs)
         self._filename="topredict_%s.csv"
-        self._directory="input"
+        self._directory=PATHES['input']
     def get_default_start_date(self):
         return get_today()
     # def get_save_mode(self):

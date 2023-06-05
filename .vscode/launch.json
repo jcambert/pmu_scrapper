@@ -16,8 +16,8 @@
             "name": "Predict Scrapped",
             "type": "python",
             "request": "launch",
-            "program": "predicter.py",
-            "args": ["mode=w","usefolder=04 2023"],
+            "program": "find_models.py",
+            "args": ["func=predicter", "mode=w","usefolder=05 2023"],
             "console": "integratedTerminal"
         },
         {
@@ -34,7 +34,7 @@
             "type": "python",
             "request": "launch",
             "program": "scrap.py",
-            "args": ["start=01022023","end=01032023","mode=w"],
+            "args": ["start=01052023","end=01062023","mode=w","usefolder=05 2023"],
             "console": "integratedTerminal"
         },
         {
