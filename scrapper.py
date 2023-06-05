@@ -289,10 +289,11 @@ class HistoryScrapper(AbstractScrapper):
         if isinstance(df_reunions,bool) and not df_reunions:
             return
         df_reunions=df_reunions['programme']['reunions']
+        df_reunions=[ r for r in df_reunions if r['statut'] != 'ANNULEE']
         for r_index,reunion in enumerate(df_reunions):
             sub=pd.DataFrame.from_dict(reunion,orient="index")[0]
             subdf=pd.json_normalize(sub['courses'],max_level=1)
-
+            subdf=subdf[subdf['statut'] != 'COURSE_ANNULEE']
             threads = list()
             for c_index,course in subdf.iterrows():
                 subdf_ptcp=None
@@ -320,7 +321,8 @@ class HistoryScrapper(AbstractScrapper):
         for spec in participants:
             if len(participants[spec])>0:
                 df_participants=pd.concat(participants[spec])
-                self._save( df_participants,path.join(self._directory,self.get_filename() % spec.lower(),self._usefolder),self.get_save_mode())
+                filename=path.join(self._directory,self.get_filename() % spec.lower(),self._usefolder) if len(self._usefolder)>0 else path.join(self._directory,self.get_filename() % spec.lower())
+                self._save( df_participants,filename,self.get_save_mode())
 
         self.logger.info(f"End scrapping day:{day}")
     def __scrap_participants(self,day,course,sub,result=False):

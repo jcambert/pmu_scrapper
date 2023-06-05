@@ -34,7 +34,7 @@
             "type": "python",
             "request": "launch",
             "program": "scrap.py",
-            "args": ["start=01042023","end=02042023","mode=w"],
+            "args": ["start=01022023","end=01032023","mode=w"],
             "console": "integratedTerminal"
         },
         {

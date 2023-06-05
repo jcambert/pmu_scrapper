@@ -126,14 +126,16 @@ def deferre_converter(value):
 def place_converter(row):
     return 1 if row['ordreArrivee'] in range(1,3) else 0
 
-def load_csv_file(filename,nrows=None):
+def load_csv_file(filename,nrows=None,is_for_prediction=False):
 
-    usecols=HEADER_COLUMNS+FEATURES+TARGETS
+    usecols=None if is_for_prediction else HEADER_COLUMNS+FEATURES+TARGETS
     types={key:np.number for key in NUMERICAL_FEATURES if key not in ['sexe','musique','deferre']}
     converters={'musique':musique_converter,'sexe':sexe_converter,'deferre':deferre_converter}
     
     df=pd.read_csv(filename,sep=";",header=0,usecols=usecols,dtype=types,converters=converters,nrows=nrows,low_memory=False,skip_blank_lines=True)
 
+    if is_for_prediction:
+        return df
     df[TARGETS].fillna(0,inplace=True)
     targets=df.apply (lambda row: place_converter(row), axis=1)
     features=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
@@ -199,7 +201,7 @@ def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuf
 
 def train(model,features,targets,test_size=0.2,random_state=200,shuffle=False):
     features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
-    this_model=create_pipelined_model(model)
+    this_model=model
     this_model.fit(features_train,targets_train)
     score=this_model.score(features_test,targets_test)
     return this_model,score
@@ -209,6 +211,14 @@ def predict_place(model,row):
     prediction= model.predict(row)
     result=prediction[0]==1
     return numPmu,result,prediction
+
+def get_classifiers(**args):
+    if 'classifiers' in args:
+        tmp=args['classifiers'].split(',') 
+        tmp=[ f'{c}classifier' for c in tmp]
+        classifiers=[ c for c in SUPPORTED_CLASSIFIERS if c.__name__.lower() in tmp]
+        return classifiers
+    return   SUPPORTED_CLASSIFIERS
 
 def get_files(path,filter='',courses=SUPPORTED_COURSES):
     if isinstance(courses, str):
@@ -222,25 +232,15 @@ def get_files(path,filter='',courses=SUPPORTED_COURSES):
             files[name[1]]=os.path.join(path, f)
     return files
 
-# def get_history_files(courses=SUPPORTED_COURSES):
-#     files={}
-#     ff= os.listdir(PATHES['history']) 
-#     for f in ff:
-#         n=os.path.basename(f)
-#         name=re.search(f'participants_({ "|".join(courses)}).csv',n)
-#         if not name is None:
-#             files[name[1]]=os.path.join(PATHES['history'], f)
-#     return files
 
-# def get_input_files(courses=SUPPORTED_COURSES):
-#     files={}
-#     ff= os.listdir(PATHES['input']) 
-#     for f in ff:
-#         n=os.path.basename(f)
-#         name=re.search(f'topredict_({ "|".join(courses)}).csv',n)
-#         if not name is None:
-#             files[name[1]]=os.path.join(PATHES['input'], f)
-#     return files
+def save_df_to_csv(df,filename,mode):
+    try:
+        
+        writeHeader=not os.path.exists(filename) or mode=='w'
+        df.to_csv(filename,header=writeHeader,sep=";",mode=mode,index=False,na_rep='')
+    except Exception as e:
+        log.error('Un probleme est survenu lors de la sauvegarde de {filename}')
+        log.error(str(e))
 
 def finder(**args):
     files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
@@ -256,20 +256,94 @@ def finder(**args):
             save_classifier_params(this_name,this_type_course,this_params)
 
 def predicter(**args):
+    nrows=args['nrows'] if 'nrows' in args else DEFAULT_NROWS
+    usefolder=args['usefolder'] if 'usefolder' in args else None
+    output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
+    
     this_classifiers={}
-    files=get_files(PATHES['input'],'topredict','trot_attele,plat')
-    files1=get_files(PATHES['input'],'topredict',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
-    for index,(course,file) in enumerate(files.items()):
-        for classifier_name in [c.__name__.lower() for c in SUPPORTED_CLASSIFIERS ]:
-            log.warning(f'Load classifier {classifier_name}-{course}')
-            classifier,fitted=load_classifier(classifier_name,course)
-            if classifier:
-                this_classifiers[f'{classifier_name}_{course}']=classifier
 
-    if not fitted:
-        #train
-        pass
-    pass
+    # classifiers=get_classifiers(**{'classifiers':'mlp'})
+    # files=get_files(PATHES['input'],'topredict','trot_attele')
+
+    classifiers=get_classifiers(**args)
+    files=get_files(PATHES['input'],'topredict',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
+
+    def internal_save(df):
+        mode=args['mode'] if 'mode' in args else 'a'
+        folder= os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'] 
+        if not os.path.exists(folder):
+            os.makedirs(folder)
+        filename=os.path.join(folder,f"predicted.csv")
+        save_df_to_csv(df,filename=filename,mode=mode)
+
+    for index,(course_name,file) in enumerate(files.items()):
+        log.info(str("*"*20))
+        log.info(f'Chargement de  {file}')
+        df=load_csv_file(file,is_for_prediction=True)
+        column_headers = list(df.columns.values)
+        log.info(column_headers)
+        log.info(f'Nombre de participants à predire: {df.shape[0]}')
+        courses=df[['date','reunion','course','hippo_code']].drop_duplicates().sort_values(by=['date','reunion','course'])
+
+        #TODO:Remove only for testing
+        # log.info(f'Before filtering {courses.shape[0]}')
+        # courses=courses[(courses['date']=='2023-02-28') & (courses['reunion']==2) & (courses['course']==3)]
+        # log.info(f'After filtering {courses.shape[0]}')
+
+        participants=df[['date','nom','numPmu']]
+
+        for classifier_name in [c.__name__.lower() for c in classifiers ]:
+            log.info(str("-"*20))
+            output_df=pd.DataFrame(columns=output_columns)
+            log.info(f'Chargement de {classifier_name}-{course_name}')
+            classifier,fitted=load_classifier(classifier_name,course_name)
+            if classifier:
+                this_classifiers[(classifier_name,course_name)]=classifier
+
+                if not fitted:
+                    #train
+                    history=get_files(PATHES['history'],'participants',classifier_name)
+                    if len(history)==1:
+                        features,targets=load_csv_file(history,nrows=nrows)
+                        train(classifier,features=features,targets=targets)
+                        #TODO:save the classifier
+                        pass
+
+                for course in courses.iterrows():
+                    x = np.asarray(course[1]).reshape(1,len(course[1]))
+                    d,r,c,h=x[0,0],x[0,1],x[0,2],x[0,3]
+                    participants_=df[(df['date']==d) & (df['reunion']==r) & (df['course']==c)].sort_values(by=['date','reunion','course','numPmu'])
+                    # for z in range(participants_.shape[0]):
+                    #     t=participants_.iloc[z]
+                    #     log.info(f' {int(t.numPmu)} {t.nom}[{t.rapport}]')
+                    
+                    participants=participants_[NUMERICAL_FEATURES+  CATEGORICAL_FEATURES+CALCULATED_FEATURES]
+                    log.info(f'Calcul de la Prediction pour Date:{d} - R{r}C{c}')
+                    place=classifier.predict(participants)
+                    res=participants.assign(place=place,
+                                            hippo_code=h,
+                                            reunion=r,
+                                            course=c,
+                                            state='place',
+                                            nom=participants_['nom'],
+                                            date=participants_['date'],
+                                            specialite=course_name,
+                                            resultat_place=0,
+                                            resultat_rapport=0,
+                                            gain_brut=0,
+                                            gain_net=0,
+                                            index_classifier=classifier_name)
+                    log.info(f'Nombre de Prediction total:{res.shape[0]}')
+                    res=res.loc[res['place']==1][output_columns]
+                    log.info(f'Nombre de chevaux place:{res.shape[0]} pour {classifier_name}')
+                    for z in range(res.shape[0]):
+                        t=res.iloc[z]
+                        log.info(f' {int(t.numPmu)} {t.nom}[{t.rapport}]')
+                    output_df=pd.concat([output_df,res.copy()])
+                # predict_place(classifier)
+            else:
+                log.warning(f'Le classifier {classifier_name.replace("classifier","")} n\'a pus etre chargé ')
+            internal_save(output_df)
 
 def trainer(**args):
     pass
