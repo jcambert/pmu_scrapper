@@ -333,6 +333,7 @@ def predicter(**args):
                                             gain_brut=0,
                                             gain_net=0,
                                             index_classifier=classifier_name)
+                    log.info(str("+"*10))
                     log.info(f'Nombre de Prediction total:{res.shape[0]}')
                     res=res.loc[res['place']==1][output_columns]
                     log.info(f'Nombre de chevaux place:{res.shape[0]} pour {classifier_name}')
