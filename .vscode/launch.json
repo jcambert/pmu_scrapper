@@ -44,6 +44,14 @@
             "program": "history.py",
             "args": ["start=01012018","end=01012019","sleep=1500"],
             "console": "integratedTerminal"
+        },
+        {
+            "name": "Train Models",
+            "type": "python",
+            "request": "launch",
+            "program": "find_models.py",
+            "args": ["func=trainer"],
+            "console": "integratedTerminal"
         }
     ]
 }

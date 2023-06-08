@@ -4,6 +4,7 @@ import re
 import numpy as np
 import pandas as pd
 import os
+import time
 from logger import configure_logging
 from operator import indexOf
 from joblib import dump,load
@@ -18,7 +19,7 @@ from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, RobustScaler
 from sklearn.tree import DecisionTreeClassifier
-from common import PATHES
+from common import PATHES,DEFAULT_NROWS,execution_time_tostring
 
 
 HEADER_COLUMNS=['date','reunion','course','nom']
@@ -29,8 +30,6 @@ CALCULATED_FEATURES=[]
 
 TARGETS=['ordreArrivee']
 FEATURES=NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES
-
-
 
 SUPPORTED_CLASSIFIERS=(AdaBoostClassifier,RidgeClassifier,SGDClassifier,MLPClassifier,KNeighborsClassifier,DecisionTreeClassifier)
 SUPPORTED_COURSES=['trot_attele','trot_monte','plat','obstacle']
@@ -89,6 +88,7 @@ def save_classifier_params(name,type_course,params):
         print( sys.exc_info()[0] )
 
 def load_classifier_with_params():
+    
     path=PATHES['model']
     classifiers = {}
     ff= os.listdir(path) 
@@ -101,11 +101,7 @@ def load_classifier_with_params():
             c=load_classifier(f'{classifier}classifier',course,True)
             if c:
                 classifiers[name[1]]=c[0]
-        # if not name is None:
-        #     with open(os.path.join(path,f), "r") as fp:
-        #         this_params=json.load( fp)
-        #         this_params=dict(( k.replace(f'{classifier}classifier__',''),v) for k,v in this_params.items())
-        #     files[name[1]]=this_params
+    
     return classifiers
 
 
@@ -156,7 +152,8 @@ def load_csv_file(filename,nrows=None,is_for_prediction=False):
 
     if is_for_prediction:
         return df
-    df[TARGETS].fillna(0,inplace=True)
+    df.fillna({'ordreArrivee':0},inplace=True)
+    # df[TARGETS].fillna(0,inplace=True)
     targets=df.apply (lambda row: place_converter(row), axis=1)
     features=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
     return features,targets
@@ -193,10 +190,10 @@ def get_models_to_find_best():
 
     # models.append([KNeighborsClassifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
     
-    # models.append([SGDClassifier(),{'eta0':np.arange(0.1,0.9,0.3), 'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
     # models.append([AdaBoostClassifier(),{'n_estimators':np.arange(10,100,10),'learning_rate':np.arange(0.5,5,0.5,np.single),'algorithm':['SAMME','SAMME.R']}])
     # models.append([MLPClassifier(),{'hidden_layer_sizes':[100],'activation':['identity', 'logistic', 'tanh', 'relu'],'solver':['lbfgs', 'sgd', 'adam'],'learning_rate':['constant', 'invscaling', 'adaptive'],'early_stopping':[True]}])
     # models.append([RidgeClassifier(),{'solver':['auto', 'svd', 'cholesky', 'lsqr', 'sparse_cg', 'sag', 'saga', 'lbfgs'] }])
+    # models.append([SGDClassifier(),{'eta0':np.arange(0.1,0.9,0.3), 'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
 
 
     # models.append([DecisionTreeClassifier(),{'criterion':['gini','entropy'],'max_features':['auto','sqrt','log2']}])
@@ -220,6 +217,7 @@ def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuf
     return bests
 
 def train(model,features,targets,test_size=0.2,random_state=200,shuffle=False):
+    
     features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
     this_model=model
     this_model.fit(features_train,targets_train)
@@ -288,7 +286,7 @@ def predicter(**args):
     classifiers=get_classifiers(**args)
     directory=os.path.join(PATHES['input'],usefolder)
     files=get_files( directory,'topredict',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
-
+    output_df=pd.DataFrame(columns=output_columns)
     def internal_save(df):
         mode=args['mode'] if 'mode' in args else 'a'
         folder= os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'] 
@@ -315,7 +313,7 @@ def predicter(**args):
 
         for classifier_name in [c.__name__.lower() for c in classifiers ]:
             log.info(str("-"*20))
-            output_df=pd.DataFrame(columns=output_columns)
+            
             log.info(f'Chargement de {classifier_name}-{course_name}')
             classifier,fitted=load_classifier(classifier_name,course_name)
             if classifier:
@@ -365,21 +363,38 @@ def predicter(**args):
                 # predict_place(classifier)
             else:
                 log.warning(f'Le classifier {classifier_name.replace("classifier","")} n\'a pus etre chargé ')
-            internal_save(output_df)
+    internal_save(output_df)
 
 def trainer(**args):
+    log.info(str("*"*15))
+    log.info('Demarrage des entrainements')
+
+    log.info("Chargements des classifiers avec leurs parametres par défaut")
     classifiers=load_classifier_with_params()
+    log.info(f'Chargement des clasifiers terminé: ({len(classifiers)} trouvé(s))')
+
+    log.info("Recuperation des chemins des fichiers d\'historique")
     files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
+    log.info(f"{len(files)} Fichiers d\'historique trouvé(s)")
+
     nrows=args['nrows'] if 'nrows' in args else DEFAULT_NROWS
     for this_type_course,file in files.items():
+        log.info(str("-")*15)
+        log.info(f"Chargement des historiques de course de {this_type_course}")
         features,targets=load_csv_file(file,nrows=nrows)
         for index,(this_name,this_model) in enumerate(classifiers.items()):
+            log.info(f"Demarrage de l\'entrainement {this_name} sur {this_type_course}" )
             train(this_model,features=features,targets=targets)
-            save_classifier(f'{this_name}classifier',this_type_course,this_model)
+            log.info(f"Entrainement {this_name} sur {this_type_course} terminé" )
+
+            log.info(f"Demarrage de la sauvegarde du classifier  {this_name} sur {this_type_course}" )
+            save_classifier(f"{this_name}classifier",this_type_course,this_model)
+            log.info(f"Sauvegarde du classifier  {this_name} sur {this_type_course} terminé" )
+    log.info("Entrainements des classifiers par course terminé !!")
     pass
 
 MODES=['predicter' , 'trainer' , 'finder']
-DEFAULT_NROWS=200000
+
 if __name__=="__main__":
     args=dict(arg.split('=') for arg in sys.argv[1:])
 
@@ -389,7 +404,10 @@ if __name__=="__main__":
     try:
         if func not in MODES:
             raise KeyError(f'le mode {func} n\'est pas supporté')
+        start_time = time.time()
         locals()[func](**args)
+        end_time=time.time()
+        log.info(f"Temps d'execution: {execution_time_tostring(start=start_time,end=end_time)}")
     except KeyError as e:
         log.fatal(str(e))
     except Exception as e:
