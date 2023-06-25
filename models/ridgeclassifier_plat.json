@@ -1,1 +1,1 @@
-{"ridgeclassifier__solver": "saga"}
+{"ridgeclassifier__solver": "sag","ridgeclassifier__fit_intercept":false}

@@ -5,6 +5,8 @@ import numpy as np
 import pandas as pd
 import os
 import time
+
+from sklearn.discriminant_analysis import StandardScaler
 from logger import configure_logging
 from operator import indexOf
 from joblib import dump,load
@@ -17,7 +19,7 @@ from sklearn.model_selection import *
 from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neural_network import MLPClassifier
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder, PolynomialFeatures, RobustScaler
+from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, PolynomialFeatures, RobustScaler
 from sklearn.tree import DecisionTreeClassifier
 from common import PATHES,DEFAULT_NROWS,execution_time_tostring
 
@@ -25,7 +27,7 @@ from common import PATHES,DEFAULT_NROWS,execution_time_tostring
 HEADER_COLUMNS=['date','reunion','course','nom']
 NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
 # CATEGORICAL_FEATURES=['hippo_code','deferre']
-CATEGORICAL_FEATURES=['deferre']
+CATEGORICAL_FEATURES=['hippo_code','deferre']
 CALCULATED_FEATURES=[]
 
 TARGETS=['ordreArrivee']
@@ -87,20 +89,23 @@ def save_classifier_params(name,type_course,params):
         print('ERROR====>')
         print( sys.exc_info()[0] )
 
-def load_classifier_with_params():
+def load_classifiers_with_params(classifier=None,specialite=None):
     
     path=PATHES['model']
     classifiers = {}
     ff= os.listdir(path) 
+    classifier__=classifier if classifier is not None else r'(\w*)'
+    specialite__=specialite if specialite is not None else r'([a-z_a-z*]*)'
+    s=f'{classifier__}classifier_{specialite__}.json'
     for f in ff:
         n=os.path.basename(f)
-        name=re.search(r'(\w*)classifier_([a-z_a-z*]*).json',n)
+        name=re.search(s ,n)
         if name:
-            classifier=name[1]
-            course=name[2]
-            c=load_classifier(f'{classifier}classifier',course,True)
+            this_classifier=name[1] if classifier is None else classifier
+            this_course=name[2] if specialite is None else specialite
+            c=load_classifier(f'{this_classifier}classifier',this_course,True)
             if c:
-                classifiers[name[1]]=c[0]
+                classifiers[this_classifier]=c[0]
     
     return classifiers
 
@@ -142,9 +147,10 @@ def deferre_converter(value):
 def place_converter(row):
     return 1 if row['ordreArrivee'] in range(1,3) else 0
 
-def load_csv_file(filename,nrows=None,is_for_prediction=False):
+def load_csv_file(filename,nrows=None, is_for_prediction=False):
 
     usecols=None if is_for_prediction else HEADER_COLUMNS+FEATURES+TARGETS
+    # nrows = get_nrows(*args) if nrows is None else nrows
     types={key:np.number for key in NUMERICAL_FEATURES if key not in ['sexe','musique','deferre']}
     converters={'musique':musique_converter,'sexe':sexe_converter,'deferre':deferre_converter}
     
@@ -158,9 +164,16 @@ def load_csv_file(filename,nrows=None,is_for_prediction=False):
     features=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
     return features,targets
 
+def get_nrows(**args):
+    nrows = args['nrows'] if 'nrows' in args else None
+    nrows = nrows if isinstance(nrows,int) else (None if nrows=='max' else DEFAULT_NROWS)
+    return nrows
+
 def create_pipelined_model(model):
-    numerical_pipeline=make_pipeline(SimpleImputer(fill_value=0), RobustScaler())
+    # numerical_pipeline=make_pipeline(SimpleImputer(strategy='constant', fill_value=0), RobustScaler())
+    numerical_pipeline=make_pipeline(SimpleImputer(strategy='constant', fill_value=0), StandardScaler())
     categorical_pipeline=(make_pipeline(OneHotEncoder(handle_unknown = 'ignore')))
+    # categorical_pipeline=(make_pipeline(OrdinalEncoder(handle_unknown = 'use_encoded_value',unknown_value=np.nan)))
     preprocessor=make_column_transformer(
         (numerical_pipeline,NUMERICAL_FEATURES),
         (categorical_pipeline,CATEGORICAL_FEATURES))
@@ -262,7 +275,7 @@ def save_df_to_csv(df,filename,mode):
 
 def finder(**args):
     files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
-    nrows=args['nrows'] if 'nrows' in args else DEFAULT_NROWS
+    nrows=get_nrows(**args)
     for this_type_course,file in files.items():
         features,targets=load_csv_file(file,nrows=nrows)
         models=find_best_models( get_models_to_find_best(),features=features,targets=targets)
@@ -274,7 +287,7 @@ def finder(**args):
             save_classifier_params(this_name,this_type_course,this_params)
 
 def predicter(**args):
-    nrows=args['nrows'] if 'nrows' in args else DEFAULT_NROWS
+    nrows=get_nrows(**args)
     usefolder=args['usefolder'] if 'usefolder' in args else None
     output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
     
@@ -298,7 +311,7 @@ def predicter(**args):
     for index,(course_name,file) in enumerate(files.items()):
         log.info(str("*"*20))
         log.info(f'Chargement de  {file}')
-        df=load_csv_file(file,is_for_prediction=True)
+        df=load_csv_file(file,nrows=nrows, is_for_prediction=True)
         column_headers = list(df.columns.values)
         log.info(column_headers)
         log.info(f'Nombre de participants à predire: {df.shape[0]}')
@@ -320,12 +333,14 @@ def predicter(**args):
                 this_classifiers[(classifier_name,course_name)]=classifier
 
                 if not fitted:
+                    log.info(f'the classifier {classifier_name} has not been fitted. Start training')
                     #train
                     history=get_files(PATHES['history'],'participants',classifier_name)
                     if len(history)==1:
                         features,targets=load_csv_file(history,nrows=nrows)
                         train(classifier,features=features,targets=targets)
                         #TODO:save the classifier
+                        save_classifier(classifier_name,course_name,classifier)
                         pass
 
                 for course in courses.iterrows():
@@ -370,14 +385,16 @@ def trainer(**args):
     log.info('Demarrage des entrainements')
 
     log.info("Chargements des classifiers avec leurs parametres par défaut")
-    classifiers=load_classifier_with_params()
+    classifier_name=args['classifier'] if 'classifier' in args else None
+    specialite=args['courses'] if 'courses' in args else None
+    classifiers=load_classifiers_with_params(classifier_name,specialite)
     log.info(f'Chargement des clasifiers terminé: ({len(classifiers)} trouvé(s))')
 
     log.info("Recuperation des chemins des fichiers d\'historique")
     files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
     log.info(f"{len(files)} Fichiers d\'historique trouvé(s)")
 
-    nrows=args['nrows'] if 'nrows' in args else DEFAULT_NROWS
+    nrows=get_nrows(**args)
     for this_type_course,file in files.items():
         log.info(str("-")*15)
         log.info(f"Chargement des historiques de course de {this_type_course}")
