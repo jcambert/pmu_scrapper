@@ -25,8 +25,10 @@ from common import PATHES,DEFAULT_NROWS,execution_time_tostring
 
 
 HEADER_COLUMNS=['date','reunion','course','nom']
-NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
-# CATEGORICAL_FEATURES=['hippo_code','deferre']
+# NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
+# Remove rapport column for testing weight of this values
+NUMERICAL_FEATURES=['numPmu','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
+
 CATEGORICAL_FEATURES=['hippo_code','deferre']
 CALCULATED_FEATURES=[]
 
@@ -145,7 +147,12 @@ def deferre_converter(value):
         return 0
     
 def place_converter(row):
-    return 1 if row['ordreArrivee'] in range(1,3) else 0
+    if row['ordreArrivee'] in range(1,3):
+        return 1
+    return 0
+    # if row['ordreArrivee'] in range(4,5):
+    #     return 5
+    # return 0
 
 def load_csv_file(filename,nrows=None, is_for_prediction=False):
 
@@ -159,7 +166,6 @@ def load_csv_file(filename,nrows=None, is_for_prediction=False):
     if is_for_prediction:
         return df
     df.fillna({'ordreArrivee':0},inplace=True)
-    # df[TARGETS].fillna(0,inplace=True)
     targets=df.apply (lambda row: place_converter(row), axis=1)
     features=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
     return features,targets
@@ -170,10 +176,8 @@ def get_nrows(**args):
     return nrows
 
 def create_pipelined_model(model):
-    # numerical_pipeline=make_pipeline(SimpleImputer(strategy='constant', fill_value=0), RobustScaler())
     numerical_pipeline=make_pipeline(SimpleImputer(strategy='constant', fill_value=0), StandardScaler())
     categorical_pipeline=(make_pipeline(OneHotEncoder(handle_unknown = 'ignore')))
-    # categorical_pipeline=(make_pipeline(OrdinalEncoder(handle_unknown = 'use_encoded_value',unknown_value=np.nan)))
     preprocessor=make_column_transformer(
         (numerical_pipeline,NUMERICAL_FEATURES),
         (categorical_pipeline,CATEGORICAL_FEATURES))
@@ -289,7 +293,9 @@ def finder(**args):
 def predicter(**args):
     nrows=get_nrows(**args)
     usefolder=args['usefolder'] if 'usefolder' in args else None
-    output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
+    # output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
+    # remove rapport
+    output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','specialite','hippo_code']
     
     this_classifiers={}
 
@@ -371,9 +377,10 @@ def predicter(**args):
                     log.info(f'Nombre de Prediction total:{res.shape[0]}')
                     res=res.loc[res['place']==1][output_columns]
                     log.info(f'Nombre de chevaux place:{res.shape[0]} pour {classifier_name}')
+                    
                     for z in range(res.shape[0]):
                         t=res.iloc[z]
-                        log.info(f' {int(t.numPmu)} {t.nom}[{t.rapport}]')
+                        log.info(f' {int(t.numPmu)} {t.nom}')
                     output_df=pd.concat([output_df,res.copy()])
                 # predict_place(classifier)
             else:

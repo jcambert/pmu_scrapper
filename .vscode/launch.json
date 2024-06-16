@@ -13,11 +13,11 @@
             "console": "integratedTerminal"
         },
         {
-            "name": "Predict Scrapped",
+            "name": "Predict",
             "type": "python",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=predicter","nrows=max", "mode=w","usefolder=04 2023"],
+            "args": ["func=predicter","nrows=max", "mode=w","usefolder=05 2023","classifiers=adaboost","courses=trot_attele"],
             "console": "integratedTerminal"
         },
         {
@@ -42,7 +42,7 @@
             "type": "python",
             "request": "launch",
             "program": "history.py",
-            "args": ["start=01062017","end=01012018","sleep=1500"],
+            "args": ["start=01012019","end=31122021","sleep=1500"],
             "console": "integratedTerminal"
         },
         {
@@ -50,7 +50,7 @@
             "type": "python",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=trainer","nrows=max","courses=plat"],
+            "args": ["func=trainer","nrows=max","classifier=adaboost","courses=trot_attele"],
             "console": "integratedTerminal"
         }
     ]

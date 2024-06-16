@@ -183,11 +183,11 @@ def train(features,targets,test_size=0.15,random_state=200,shuffle=False):
     return _models,features_train, features_test, targets_train, targets_test 
 
 def predict_place(model,row):
-    # x = np.asarray(row).reshape(1,len(row))
+    
     numPmu=int(row.numPmu)
     prediction= model.predict(row)
-    result=prediction[0]==1
-    return numPmu,result,prediction
+    place=prediction[0]==1
+    return numPmu,place,prediction
 
 models={
 
