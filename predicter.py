@@ -123,7 +123,7 @@ def load_file(filename,is_predict=False):
         features = df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
         return features,targets
     else:
-        courses=df[['date','reunion','course','hippo_code']].drop_duplicates().sort_values(by=['date','reunion','course'])
+        courses=df[['date','reunion','course','hippo_code']].drop_duplicates().sort_values(by=['date','hippo_code','reunion','course'])
         participants=df[['date','nom','numPmu']]
         return df[HEADER_COLUMNS+NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES],courses,participants
 
@@ -169,6 +169,7 @@ def train(features,targets,test_size=0.15,random_state=200,shuffle=False):
 
     _models={}
     _models['sgdclassifier']=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.05),classifier)
+    
     for classifier in classifiers:
         if classifier[1] is not None:
             model_=make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.05),classifier[1])
@@ -249,7 +250,7 @@ if __name__=='__main__':
                     hippo_code=h
                 if filter_by_hippo_code  and h not in models:
                     if not has_models:
-                        models_,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.05,shuffle=True)
+                        models_,features_train, features_test, targets_train, targets_test =train(features[features['hippo_code']==h],targets[features['hippo_code']==h],test_size=0.2,shuffle=True)
                         for idx_, (name_, model_) in enumerate(models_.items()):
                             save_classifier(name_,file,model_)
                         models[hippo_code]={}

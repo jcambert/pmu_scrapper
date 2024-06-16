@@ -1,1 +1,1 @@
-{"sgdclassifier__eta0": 0.1, "sgdclassifier__learning_rate": "invscaling", "sgdclassifier__loss": "log_loss", "sgdclassifier__penalty": "l1"}
+{"sgdclassifier__eta0": 0.1, "sgdclassifier__learning_rate": "constant", "sgdclassifier__loss": "hinge", "sgdclassifier__penalty": "l2"}

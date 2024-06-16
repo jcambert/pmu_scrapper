@@ -4,7 +4,7 @@ import sys,getopt
 from sympy import true
 
 
-from scrapper import HistoryScrapper,get_pmu_date,get_today,get_tommorow
+from scrapper import HistoryScrapper,get_pmu_date,get_today
 
 if __name__=="__main__":
 

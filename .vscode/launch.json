@@ -6,7 +6,7 @@
     "configurations": [
         {
             "name": "Python : Fichier actuel",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "${file}",
             "args": [],
@@ -14,15 +14,15 @@
         },
         {
             "name": "Predict",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=predicter","nrows=max", "mode=w","usefolder=05 2023","classifiers=adaboost","courses=trot_attele"],
+            "args": ["func=predicter","nrows=max", "mode=w","usefolder=06 2024","courses=trot_attele"],
             "console": "integratedTerminal"
         },
         {
             "name": "Resultat For Date",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "resultat.py",
             "args": ["start=01052023","end=01062023","usefolder=05 2023"],
@@ -31,27 +31,44 @@
         },
         {
             "name": "Scrap To Predict",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "scrap.py",
-            "args": ["start=01052023","end=01062023","mode=w","usefolder=05 2023"],
+            "args": ["start=01062024","end=08062024","mode=w","usefolder=06 2024"],
             "console": "integratedTerminal"
         },
         {
             "name": "History",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "history.py",
-            "args": ["start=01012019","end=31122021","sleep=1500"],
+            "args": ["start=01012023","end=31122023","sleep=1500"],
             "console": "integratedTerminal"
         },
         {
             "name": "Train Models",
-            "type": "python",
+            "type": "debugpy",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=trainer","nrows=max","classifier=adaboost","courses=trot_attele"],
+            "args": ["func=trainer","nrows=max","courses=trot_attele","classifiers=SGD"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Find Models Params",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "find_models.py",
+            "args": ["func=finder","log_level=INFO" ,"verbose=3","nrows=max","courses=trot_attele","classifiers=SGD"],
+            "console": "integratedTerminal"
+        },
+        {
+            "name": "Score Predictions",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "find_models.py",
+            "args": ["func=scorer","log_level=INFO" ,"verbose=3","courses=trot_attele","usefolder=06 2024"],
             "console": "integratedTerminal"
         }
+
     ]
 }

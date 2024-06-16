@@ -1,123 +1,38 @@
-import json
-import sys
+
+import sys,traceback
 import re
 import numpy as np
 import pandas as pd
 import os
 import time
 
-from sklearn.discriminant_analysis import StandardScaler
+
 from logger import configure_logging
 from operator import indexOf
-from joblib import dump,load
-from sklearn.compose import make_column_transformer
-from sklearn.ensemble import AdaBoostClassifier
-from sklearn.feature_selection import VarianceThreshold
-from sklearn.impute import SimpleImputer
-from sklearn.linear_model import RidgeClassifier, SGDClassifier
-from sklearn.model_selection import *
-from sklearn.neighbors import KNeighborsClassifier
-from sklearn.neural_network import MLPClassifier
-from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, PolynomialFeatures, RobustScaler
-from sklearn.tree import DecisionTreeClassifier
 from common import PATHES,DEFAULT_NROWS,execution_time_tostring
+from classifier import *
 
-
+from pandas import DataFrame
+global log,verbose
 HEADER_COLUMNS=['date','reunion','course','nom']
-# NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
-# Remove rapport column for testing weight of this values
-NUMERICAL_FEATURES=['numPmu','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
-
-CATEGORICAL_FEATURES=['hippo_code','deferre']
-CALCULATED_FEATURES=[]
-
 TARGETS=['ordreArrivee']
-FEATURES=NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES
-
-SUPPORTED_CLASSIFIERS=(AdaBoostClassifier,RidgeClassifier,SGDClassifier,MLPClassifier,KNeighborsClassifier,DecisionTreeClassifier)
 SUPPORTED_COURSES=['trot_attele','trot_monte','plat','obstacle']
 
-
-
-
-def load_classifier(name,type_course,from_params=False):
-    if not from_params:
-        file=has_classifier(name,type_course,'model')
-        if file:
-            return load(file),True
-    
-    file= has_classifier(name,type_course,'json')
-    if file:
-        with open(file, "r") as fp:
-            this_params=json.load(fp)
-            this_params=dict(( k.replace(f'{name}__',''),v) for k,v in this_params.items())
-        cls= [ c for c in SUPPORTED_CLASSIFIERS if c.__name__.lower()==name]
-        this_cls=cls[0](**this_params)
-        return create_pipelined_model(this_cls),False
-    return False,False
-
-def save_classifier(name,type_course,classifier):
-    path=PATHES['model'] 
-    if(not os.path.exists(path)):
-        os.mkdir(path)
-    file=os.path.join(path, f'{name}_{type_course}.model')
-    if(os.path.isfile(file)):
-        os.remove(file)
-    dump(classifier,file)
-
-def has_classifier(name,type_course,model_or_params='model'):
-    file=os.path.join(PATHES['model'], f'{name}_{type_course}.{model_or_params}')
-    return file if os.path.isfile(file) else False
-
-
-
-
-def json_type_converter(value):
-    if isinstance(value, np.generic): return value.item()  
-    return value
-
-def save_classifier_params(name,type_course,params):
-    path=PATHES['model']
-    if(not os.path.exists(path)):
-        os.mkdir(path)
-    file=os.path.join(path, f'{name}_{type_course}.json')
-    if(os.path.isfile(file)):
-        os.remove(file)
-    try:
-        with open(file, "w") as fp:
-            json.dump(params,fp, default=json_type_converter) 
-    except :
-        print('ERROR====>')
-        print( sys.exc_info()[0] )
-
-def load_classifiers_with_params(classifier=None,specialite=None):
-    
-    path=PATHES['model']
-    classifiers = {}
-    ff= os.listdir(path) 
-    classifier__=classifier if classifier is not None else r'(\w*)'
-    specialite__=specialite if specialite is not None else r'([a-z_a-z*]*)'
-    s=f'{classifier__}classifier_{specialite__}.json'
-    for f in ff:
-        n=os.path.basename(f)
-        name=re.search(s ,n)
-        if name:
-            this_classifier=name[1] if classifier is None else classifier
-            this_course=name[2] if specialite is None else specialite
-            c=load_classifier(f'{this_classifier}classifier',this_course,True)
-            if c:
-                classifiers[this_classifier]=c[0]
-    
-    return classifiers
-
-
-
+DEFAULT_GRIDSEARCH_NJOB=1
+DEFAULT_VERBOSE=1
 
 music_pattern='([0-9,D,T,A,R][a,m,h,s,c,p,o]){1}'
 music_prog = re.compile(music_pattern,flags=re.IGNORECASE)
 music_penalities={'0':11,'D':6,'T':11,'A':11,'R':11}
 DEFAULT_MUSIC=music_penalities['0']
+NON_PLACE_NUMBER = -999
+PLACE_NUMBER=1
+QUINTE_NUMBER=5
+def get_model_name(model):
+    return model.__class__.__name__.lower()
+
+def get_args(name,default_,**args):
+    return args[name] if name in args else default_
 
 def musique_converter(music,speciality='a'):
     points=0
@@ -148,97 +63,107 @@ def deferre_converter(value):
     
 def place_converter(row):
     if row['ordreArrivee'] in range(1,3):
-        return 1
-    return 0
-    # if row['ordreArrivee'] in range(4,5):
-    #     return 5
-    # return 0
+        return PLACE_NUMBER
+    return NON_PLACE_NUMBER
+def quinte_converter(row):
+    if row['ordreArrivee'] in range(4,5):
+         return QUINTE_NUMBER
+    return NON_PLACE_NUMBER
 
 def load_csv_file(filename,nrows=None, is_for_prediction=False):
 
     usecols=None if is_for_prediction else HEADER_COLUMNS+FEATURES+TARGETS
-    # nrows = get_nrows(*args) if nrows is None else nrows
-    types={key:np.number for key in NUMERICAL_FEATURES if key not in ['sexe','musique','deferre']}
+    types={key:np.int32 for key in NUMERICAL_FEATURES if key not in ['sexe','musique','deferre']}
     converters={'musique':musique_converter,'sexe':sexe_converter,'deferre':deferre_converter}
-    
     df=pd.read_csv(filename,sep=";",header=0,usecols=usecols,dtype=types,converters=converters,nrows=nrows,low_memory=False,skip_blank_lines=True)
 
     if is_for_prediction:
         return df
     df.fillna({'ordreArrivee':0},inplace=True)
     targets=df.apply (lambda row: place_converter(row), axis=1)
-    features=df[NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES]
+    features=df[FEATURES]
     return features,targets
 
-def get_nrows(**args):
-    nrows = args['nrows'] if 'nrows' in args else None
+def get_nrows(**args) :
+    """Return nrows from args line else DEFAULT_NROWS"""
+    nrows = get_args('nrows',None,**args)
     nrows = nrows if isinstance(nrows,int) else (None if nrows=='max' else DEFAULT_NROWS)
     return nrows
 
-def create_pipelined_model(model):
-    numerical_pipeline=make_pipeline(SimpleImputer(strategy='constant', fill_value=0), StandardScaler())
-    categorical_pipeline=(make_pipeline(OneHotEncoder(handle_unknown = 'ignore')))
-    preprocessor=make_column_transformer(
-        (numerical_pipeline,NUMERICAL_FEATURES),
-        (categorical_pipeline,CATEGORICAL_FEATURES))
-    model= make_pipeline(preprocessor,PolynomialFeatures(),VarianceThreshold(0.05),model)
-    return model
 
-def search_best(model,params,features_train,targets_train,cv=5,use_pipeline=True):
-    this_name=model.__class__.__name__.lower()
+def search_best(model,params,features_train:DataFrame,targets_train:DataFrame,cv=5,use_pipeline=True,**args):
+    this_name=get_model_name( model)
     params_grid={}
-
+    n_job = args['n_job'] if 'n_job' in args else DEFAULT_GRIDSEARCH_NJOB
+    
     if(use_pipeline):
         this_model=create_pipelined_model(model)
         this_params=dict(( this_name+"__"+k,v) for k,v in params.items())
+        # this_params=dict(( k,v) for k,v in params.items())
     else:
         this_model=model
         this_params=params
     this_params.update(params_grid)
-    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=2,n_jobs=2)
+    if verbose>1:
+        log.info(f"features train:{features_train.shape}")
+        log.info(features_train.head())
+        log.info(type(features_train))
+
+        log.info(f"targets train:{features_train.shape}")
+        log.info(targets_train.head())
+        log.info( type(targets_train))
+    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=verbose,n_jobs=n_job)
     grid.fit(features_train,targets_train)
     this_params=grid.best_params_
     this_model=grid.best_estimator_
     return this_model,this_params,this_name
 
 
-def get_models_to_find_best():
+def get_models_to_find_best(classifers):
     models=[]
 
-    # models.append([KNeighborsClassifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
-    
-    # models.append([AdaBoostClassifier(),{'n_estimators':np.arange(10,100,10),'learning_rate':np.arange(0.5,5,0.5,np.single),'algorithm':['SAMME','SAMME.R']}])
-    # models.append([MLPClassifier(),{'hidden_layer_sizes':[100],'activation':['identity', 'logistic', 'tanh', 'relu'],'solver':['lbfgs', 'sgd', 'adam'],'learning_rate':['constant', 'invscaling', 'adaptive'],'early_stopping':[True]}])
-    # models.append([RidgeClassifier(),{'solver':['auto', 'svd', 'cholesky', 'lsqr', 'sparse_cg', 'sag', 'saga', 'lbfgs'] }])
-    # models.append([SGDClassifier(),{'eta0':np.arange(0.1,0.9,0.3), 'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
-
-
-    # models.append([DecisionTreeClassifier(),{'criterion':['gini','entropy'],'max_features':['auto','sqrt','log2']}])
+    for classifier in classifers:
+        if classifier is KNeighborsClassifier:
+            models.append([classifier(),{'n_neighbors':np.arange(1,20),'metric':['euclidean', 'l2', 'l1', 'manhattan', 'cityblock', 'braycurtis', 'canberra', 'chebyshev', 'correlation', 'cosine', 'dice', 'hamming', 'jaccard', 'kulsinski', 'mahalanobis', 'matching', 'minkowski', 'rogerstanimoto', 'russellrao', 'seuclidean', 'sokalmichener', 'sokalsneath', 'sqeuclidean', 'yule', 'wminkowski', 'nan_euclidean', 'haversine']}])
+        elif classifier is AdaBoostClassifier:
+            models.append([classifier(),{'n_estimators':np.arange(10,100,10),'learning_rate':np.arange(0.5,5,0.5,np.single),'algorithm':['SAMME']}])
+        elif classifier is MLPClassifier:
+            models.append([classifier(),{'hidden_layer_sizes':[20],'activation':['identity', 'logistic', 'tanh', 'relu'],'solver':['lbfgs', 'sgd', 'adam'],'learning_rate':['constant', 'invscaling', 'adaptive'],'early_stopping':[True]}])
+        elif classifier is RidgeClassifier:
+            models.append([classifier(),{'solver':['auto', 'svd', 'cholesky', 'lsqr', 'sparse_cg', 'sag', 'saga', 'lbfgs'] }])
+        elif classifier is SGDClassifier:
+            models.append([classifier(),{'eta0':np.arange(0.1,0.9,0.3), 'learning_rate':['constant','optimal','invscaling','adaptive'], 'penalty':['l2', 'l1', 'elasticnet',], 'loss':['hinge','log', 'modified_huber', 'squared_hinge', 'perceptron', 'huber', 'epsilon_insensitive', 'squared_epsilon_insensitive']}])
+        elif classifier is DecisionTreeClassifier:
+            models.append([classifier(),{'criterion':['gini','entropy'], 'max_depth':np.arange(1,2),'min_samples_split':np.arange(1,2),'min_samples_leaf':np.arange(1,2), 'max_features':np.arange(1,2)    }])
 
 
 
     return models
 
 
-def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuffle=False):
+def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuffle=False,**args):
     features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
 
 
     bests=[]
     for model in models:
-        best_model,best_params,best_name=search_best(model[0],model[1],features_train,targets_train)
+        best_model,best_params,best_name=search_best(model[0],model[1],features_train,targets_train,args=args)
         print('best name',best_name)
         print('best model:',best_model.score(features_test,targets_test))
         print('best params:',best_params)
         bests.append({'name':best_name ,'model':best_model,'params':best_params})
     return bests
 
-def train(model,features,targets,test_size=0.2,random_state=200,shuffle=False):
-    
+def train(model,features,targets,test_size=0.2,random_state=200,shuffle=False,**args):
+    log.info(f"start training {get_model_name(model)}")
+    test_size=get_args('test_size',test_size, args)
+    random_state=get_args('random_state',random_state,args)
+    shuffle=get_args('shuffle',shuffle,args)
     features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
     this_model=model
     this_model.fit(features_train,targets_train)
     score=this_model.score(features_test,targets_test)
+    log.info(f"{get_model_name(model)} training finished")
     return this_model,score
 
 def predict_place(model,row):
@@ -250,21 +175,24 @@ def predict_place(model,row):
 def get_classifiers(**args):
     if 'classifiers' in args:
         tmp=args['classifiers'].split(',') 
-        tmp=[ f'{c}classifier' for c in tmp]
+        tmp=[ f'{c.lower()}classifier' for c in tmp]
         classifiers=[ c for c in SUPPORTED_CLASSIFIERS if c.__name__.lower() in tmp]
         return classifiers
     return   SUPPORTED_CLASSIFIERS
 
 def get_files(path,filter='',courses=SUPPORTED_COURSES):
+    """get files of supported courses"""
     if isinstance(courses, str):
         courses=courses.split(',')
     files={}
     ff= os.listdir(path) 
     for f in ff:
         n=os.path.basename(f)
-        name=re.search(f'{filter}_({ "|".join(courses)}).csv',n)
-        if not name is None:
-            files[name[1]]=os.path.join(path, f)
+        f=f'{filter}_({ "|".join(courses)}).csv' if courses else f'{filter}.csv'
+        match=re.search(f,n)
+        if  match :
+            key= match[1] if len(match.groups())>0 else match[0]
+            files[key]=os.path.join(path, match.string)
     return files
 
 
@@ -274,15 +202,38 @@ def save_df_to_csv(df,filename,mode):
         writeHeader=not os.path.exists(filename) or mode=='w'
         df.to_csv(filename,header=writeHeader,sep=";",mode=mode,index=False,na_rep='')
     except Exception as e:
-        log.error('Un probleme est survenu lors de la sauvegarde de {filename}')
+        log.error(f"Un probleme est survenu lors de la sauvegarde de {filename}")
         log.error(str(e))
 
+def scorer(**args):
+    """ Get predicted and resultat for courses"""
+    usefolder=get_args('usefolder', None,**args)
+    nrows=get_nrows(**args)
+
+    history_files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
+    predictions_files= get_files( os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'],'predicted',None)
+    prediction_file=predictions_files['predicted.csv']
+    prediction_df=load_csv_file(prediction_file,nrows=nrows,is_for_prediction=True)
+    log.info("Load prediction file")
+    log.info(prediction_df.shape)
+    log.info(prediction_df.head())
+    print("-"*60)
+    for key,file in history_files.items():
+        history_df=load_csv_file(file,nrows=nrows,is_for_prediction= True)
+        log.info(f"Load history file {key}")
+        log.info(history_df.shape)
+        log.info(history_df.head())
+    pass
+
 def finder(**args):
+    """Finder best classifier function with various args"""
     files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
     nrows=get_nrows(**args)
+    
+    classifiers=get_classifiers(**args)
     for this_type_course,file in files.items():
         features,targets=load_csv_file(file,nrows=nrows)
-        models=find_best_models( get_models_to_find_best(),features=features,targets=targets)
+        models=find_best_models( get_models_to_find_best(classifiers),features=features,targets=targets,args=args)
         for model in models:
             this_model=model['model']
             this_name=model['name']
@@ -291,16 +242,15 @@ def finder(**args):
             save_classifier_params(this_name,this_type_course,this_params)
 
 def predicter(**args):
+    """ Predicter Function"""
     nrows=get_nrows(**args)
-    usefolder=args['usefolder'] if 'usefolder' in args else None
+    usefolder=get_args('usefolder', None,args)
     # output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
     # remove rapport
     output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','specialite','hippo_code']
     
     this_classifiers={}
 
-    # classifiers=get_classifiers(**{'classifiers':'mlp'})
-    # files=get_files(PATHES['input'],'topredict','trot_attele')
 
     classifiers=get_classifiers(**args)
     directory=os.path.join(PATHES['input'],usefolder)
@@ -388,6 +338,7 @@ def predicter(**args):
     internal_save(output_df)
 
 def trainer(**args):
+    """Trainer function"""
     log.info(str("*"*15))
     log.info('Demarrage des entrainements')
 
@@ -408,7 +359,7 @@ def trainer(**args):
         features,targets=load_csv_file(file,nrows=nrows)
         for index,(this_name,this_model) in enumerate(classifiers.items()):
             log.info(f"Demarrage de l\'entrainement {this_name} sur {this_type_course}" )
-            train(this_model,features=features,targets=targets)
+            train(this_model,features=features,targets=targets,args=args)
             log.info(f"Entrainement {this_name} sur {this_type_course} terminé" )
 
             log.info(f"Demarrage de la sauvegarde du classifier  {this_name} sur {this_type_course}" )
@@ -417,14 +368,15 @@ def trainer(**args):
     log.info("Entrainements des classifiers par course terminé !!")
     pass
 
-MODES=['predicter' , 'trainer' , 'finder']
+MODES=['predicter' , 'trainer' , 'finder','scorer']
 
 if __name__=="__main__":
+    
     args=dict(arg.split('=') for arg in sys.argv[1:])
 
     func=args['func'] if 'func' in args else 'trainer'
-    log= configure_logging(func)
-
+    log = configure_logging(func,**args)
+    verbose = int(args['verbose']) if 'verbose' in args else DEFAULT_VERBOSE
     try:
         if func not in MODES:
             raise KeyError(f'le mode {func} n\'est pas supporté')
@@ -437,5 +389,9 @@ if __name__=="__main__":
     except Exception as e:
         log.fatal("Un erreur innatendue est survenue")
         log.fatal(str(e))
+        if verbose>1:
+            print("-"*60)
+            traceback.print_exc(file=sys.stdout)
+            print("-"*60)
     pass
 
