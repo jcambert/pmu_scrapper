@@ -6,7 +6,8 @@ from logger import configure_logging
 
 if __name__=="__main__":
 
-    log=configure_logging("Resultat")
+    args=dict(arg.split('=') for arg in sys.argv[1:])
+    log=configure_logging("Resultat",**args)
    
 
     specialites=None

@@ -73,7 +73,10 @@ def quinte_converter(row):
 def load_csv_file(filename,nrows=None, is_for_prediction=False):
 
     usecols=None if is_for_prediction else HEADER_COLUMNS+FEATURES+TARGETS
-    types={key:np.int32 for key in NUMERICAL_FEATURES if key not in ['sexe','musique','deferre']}
+    
+    types={key:np.float64 for key in INT32_FEATURES if key not in ['sexe','musique']}
+    types.update({key:np.float64 for key in FLOAT64_FEATURES })
+
     converters={'musique':musique_converter,'sexe':sexe_converter,'deferre':deferre_converter}
     df=pd.read_csv(filename,sep=";",header=0,usecols=usecols,dtype=types,converters=converters,nrows=nrows,low_memory=False,skip_blank_lines=True)
 
@@ -156,9 +159,9 @@ def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuf
 
 def train(model,features,targets,test_size=0.2,random_state=200,shuffle=False,**args):
     log.info(f"start training {get_model_name(model)}")
-    test_size=get_args('test_size',test_size, args)
-    random_state=get_args('random_state',random_state,args)
-    shuffle=get_args('shuffle',shuffle,args)
+    test_size=get_args('test_size',test_size, **args)
+    random_state=get_args('random_state',random_state,**args)
+    shuffle=get_args('shuffle',shuffle,**args)
     features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
     this_model=model
     this_model.fit(features_train,targets_train)
@@ -207,22 +210,39 @@ def save_df_to_csv(df,filename,mode):
 
 def scorer(**args):
     """ Get predicted and resultat for courses"""
+
+    def create_key(row):
+         return row['date']+'-'+str(row['reunion'])+'-'+str(row['reunion'])+'-'+str(row['course'])+'-'+str(row['numPmu'])
+    
+    score_file='d:/score.csv'
+    if os.path.exists(score_file):
+        os.remove(score_file)
+
     usefolder=get_args('usefolder', None,**args)
     nrows=get_nrows(**args)
-
-    history_files=get_files(PATHES['history'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
-    predictions_files= get_files( os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'],'predicted',None)
-    prediction_file=predictions_files['predicted.csv']
-    prediction_df=load_csv_file(prediction_file,nrows=nrows,is_for_prediction=True)
+    courses = get_args('courses',SUPPORTED_COURSES,**args)
+    # history_files=get_files(PATHES['input'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
+    resultat_files= get_files( os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'],'resultats',courses=courses)
+    predicted_files= get_files( os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'],'predicted',None)
+  
+    predicted_file=predicted_files['predicted.csv']
+    predicted_df=load_csv_file(predicted_file,nrows=nrows,is_for_prediction=True)
+    # date;reunion;course;numPmu;
+    predicted_df['key']=predicted_df.apply(create_key,axis=1)
+    # resultat_df.to_csv('d:/predicted.csv',sep=';')
     log.info("Load prediction file")
-    log.info(prediction_df.shape)
-    log.info(prediction_df.head())
+    log.info(predicted_df.shape)
+    log.info(predicted_df.head())
     print("-"*60)
-    for key,file in history_files.items():
-        history_df=load_csv_file(file,nrows=nrows,is_for_prediction= True)
+    for key,file in resultat_files.items():
+        resultat_df=load_csv_file(file,nrows=nrows,is_for_prediction= True)
+        resultat_df['key']=resultat_df.apply(create_key,axis=1)
         log.info(f"Load history file {key}")
-        log.info(history_df.shape)
-        log.info(history_df.head())
+        log.info(resultat_df.shape)
+        log.info(resultat_df.head())
+
+        result = pd.merge(predicted_df, resultat_df, on ='key').drop('specialite',axis=1).drop('date_y',axis=1).drop('reunion_y',axis=1).drop('course_y',axis=1).drop('numPmu_y',axis=1).drop('key',axis=1)
+        result.to_csv(score_file,sep=';',mode='a')
     pass
 
 def finder(**args):
@@ -244,7 +264,7 @@ def finder(**args):
 def predicter(**args):
     """ Predicter Function"""
     nrows=get_nrows(**args)
-    usefolder=get_args('usefolder', None,args)
+    usefolder=get_args('usefolder', None,**args)
     # output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','rapport','specialite','hippo_code']
     # remove rapport
     output_columns=['index_classifier','date','reunion','course','numPmu','place','nom','specialite','hippo_code']
@@ -308,6 +328,7 @@ def predicter(**args):
                     #     log.info(f' {int(t.numPmu)} {t.nom}[{t.rapport}]')
                     
                     participants=participants_[NUMERICAL_FEATURES+  CATEGORICAL_FEATURES+CALCULATED_FEATURES]
+                    log.info(str("+"*10))
                     log.info(f'Calcul de la Prediction pour Date:{d} - R{r}C{c}')
                     place=classifier.predict(participants)
                     res=participants.assign(place=place,
@@ -323,7 +344,6 @@ def predicter(**args):
                                             gain_brut=0,
                                             gain_net=0,
                                             index_classifier=classifier_name)
-                    log.info(str("+"*10))
                     log.info(f'Nombre de Prediction total:{res.shape[0]}')
                     res=res.loc[res['place']==1][output_columns]
                     log.info(f'Nombre de chevaux place:{res.shape[0]} pour {classifier_name}')
@@ -354,17 +374,18 @@ def trainer(**args):
 
     nrows=get_nrows(**args)
     for this_type_course,file in files.items():
-        log.info(str("-")*15)
+        log.info(str("-")*35)
         log.info(f"Chargement des historiques de course de {this_type_course}")
         features,targets=load_csv_file(file,nrows=nrows)
         for index,(this_name,this_model) in enumerate(classifiers.items()):
-            log.info(f"Demarrage de l\'entrainement {this_name} sur {this_type_course}" )
+            log.info(f"{index+1} --- Demarrage de l\'entrainement {this_name.upper()} sur {this_type_course}" )
             train(this_model,features=features,targets=targets,args=args)
-            log.info(f"Entrainement {this_name} sur {this_type_course} terminé" )
-
-            log.info(f"Demarrage de la sauvegarde du classifier  {this_name} sur {this_type_course}" )
+            log.info(f"Entrainement {this_name.upper()} sur {this_type_course} terminé" )
+            log.info("*"*20)
+            log.info(f"Demarrage de la sauvegarde du classifier  {this_name.upper()} sur {this_type_course}" )
             save_classifier(f"{this_name}classifier",this_type_course,this_model)
-            log.info(f"Sauvegarde du classifier  {this_name} sur {this_type_course} terminé" )
+            log.info(f"Sauvegarde du classifier  {this_name.upper()} sur {this_type_course} terminé" )
+            log.info("+"*20)
     log.info("Entrainements des classifiers par course terminé !!")
     pass
 

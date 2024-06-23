@@ -18,13 +18,16 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder, PolynomialFeatu
 from common import PATHES,DEFAULT_NROWS,execution_time_tostring
 
 SUPPORTED_CLASSIFIERS=(AdaBoostClassifier,RidgeClassifier,SGDClassifier,MLPClassifier,KNeighborsClassifier,DecisionTreeClassifier)
+INT32_FEATURES=['numPmu','rapport','age','sexe','musique']
+FLOAT64_FEATURES=['nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente',]
 # NUMERICAL_FEATURES=['numPmu','rapport','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
+NUMERICAL_FEATURES=INT32_FEATURES+FLOAT64_FEATURES
 # Remove rapport column for testing weight of this values
 # NUMERICAL_FEATURES=['numPmu','age','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','distance','handicapDistance','gain_carriere','gain_victoires','gain_places','gain_annee_en_cours','gain_annee_precedente','sexe','musique']
-# CATEGORICAL_FEATURES=['hippo_code','deferre']
+CATEGORICAL_FEATURES=['hippo_code','deferre']
 CALCULATED_FEATURES=[]
-NUMERICAL_FEATURES=['numPmu']
-CATEGORICAL_FEATURES=['hippo_code']
+# NUMERICAL_FEATURES=['numPmu']
+# CATEGORICAL_FEATURES=['hippo_code']
 FEATURES=NUMERICAL_FEATURES+CATEGORICAL_FEATURES+CALCULATED_FEATURES
 
 def load_classifier(name,type_course,from_params=False):

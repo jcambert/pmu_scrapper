@@ -7,6 +7,7 @@ import numpy as np
 import logging
 import time
 import threading
+import sys,traceback
 from os import error, path,mkdir
 from datetime import datetime,  timedelta,date
 from common import PATHES
@@ -18,6 +19,8 @@ PROXIES = {
 PMU_DATE_FORMAT='%d%m%Y'
 
 PREDICT_FILENAME_PREFIX="to_predict_"
+
+DEFAULT_VERBOSE=1
 
 prg_url="https://online.turfinfo.api.pmu.fr/rest/client/1/programme/%s?meteo=false&specialisation=INTERNET"
 ptcp_url="https://online.turfinfo.api.pmu.fr/rest/client/1/programme/%s/R%s/C%s/participants?specialisation=INTERNET"
@@ -77,6 +80,7 @@ class AbstractScrapper():
             self.logger=logging
         self._mode=kwargs['mode'] if 'mode' in kwargs else 'a'
         self._usefolder=kwargs['usefolder'] if 'usefolder' in kwargs else ''
+        self.verbose= int(kwargs['verbose']) if 'verbose' in kwargs else DEFAULT_VERBOSE
     def get_save_mode(self):
         return self._mode
     def _origins(self):
@@ -277,7 +281,12 @@ class ResultatScrapper(AbstractScrapper):
                 df = df[df.pari.isin( ['E_SIMPLE_GAGNANT','E_SIMPLE_PLACE'])]
                 return df
         except Exception as ex:
-            self.logger.error(ex)
+            self.logger.fatal("Un erreur innatendue est survenue")
+            self.logger.fatal(str(ex))
+            if self.verbose>1:
+                print("-"*60)
+                traceback.print_exc(file=sys.stdout)
+                print("-"*60)
             return False
 
 class HistoryScrapper(AbstractScrapper):
@@ -347,11 +356,11 @@ class HistoryScrapper(AbstractScrapper):
             # TODO CHECK
             # if 'gainsParticipant' in subdf_ptcp and not 'gainsCarriere' in subdf['gainsParticipant']:
             #     subdf_ptcp=subdf_ptcp.assign(gain_carriere=[0])
-            subdf_ptcp=subdf_ptcp.assign(gain_carriere=[value['gainsCarriere'] for value in subdf_ptcp['gainsParticipant']])
-            subdf_ptcp=subdf_ptcp.assign(gain_victoires=[value['gainsVictoires'] for value in subdf_ptcp['gainsParticipant']])
-            subdf_ptcp=subdf_ptcp.assign(gain_places=[value['gainsPlace'] for value in subdf_ptcp['gainsParticipant']])
-            subdf_ptcp=subdf_ptcp.assign(gain_annee_en_cours=[value['gainsAnneeEnCours'] for value in subdf_ptcp['gainsParticipant']])
             if 'gainsParticipant' in subdf_ptcp:
+                subdf_ptcp=subdf_ptcp.assign(gain_carriere=[value['gainsCarriere'] for value in subdf_ptcp['gainsParticipant']])
+                subdf_ptcp=subdf_ptcp.assign(gain_victoires=[value['gainsVictoires'] for value in subdf_ptcp['gainsParticipant']])
+                subdf_ptcp=subdf_ptcp.assign(gain_places=[value['gainsPlace'] for value in subdf_ptcp['gainsParticipant']])
+                subdf_ptcp=subdf_ptcp.assign(gain_annee_en_cours=[value['gainsAnneeEnCours'] for value in subdf_ptcp['gainsParticipant']])
                 subdf_ptcp=subdf_ptcp.assign(gain_annee_precedente=[value['gainsAnneePrecedente'] for value in subdf_ptcp['gainsParticipant']])
             else:
                 subdf_ptcp['gainsParticipant']=0
@@ -376,13 +385,15 @@ class HistoryScrapper(AbstractScrapper):
             if not 'handicapDistance'   in subdf_ptcp:
                 subdf_ptcp['handicapDistance']=0    
 
+            if not 'ordreArrivee' in subdf_ptcp:
+                subdf_ptcp['ordreArrivee']=0
+
             col_ex=subdf_ptcp.columns.tolist()
             col_to=['date','reunion','course','hippo_code','hippo_nom', 'nom','numPmu','rapport','age','sexe','race','statut','oeilleres','deferre','indicateurInedit','musique','nombreCourses','nombreVictoires','nombrePlaces','nombrePlacesSecond','nombrePlacesTroisieme','ordreArrivee','distance','handicapDistance','gain_carriere'	,'gain_victoires'	,'gain_places'	,'gain_annee_en_cours',	'gain_annee_precedente','placeCorde','handicapValeur','handicapPoids']
             for col in filter(lambda x: x not in col_ex ,col_to) :
                 self.logger.warning(f"{col} does not exist in dataframe")
+                subdf_ptcp[col]=0
             
-            if not 'ordreArrivee' in subdf_ptcp:
-                subdf_ptcp['ordreArrivee']=0
             subdf_ptcp=subdf_ptcp[col_to]
             if isinstance(result,list):
                 result.append(subdf_ptcp)
@@ -390,7 +401,12 @@ class HistoryScrapper(AbstractScrapper):
             else:
                 return subdf_ptcp
         except Exception as ex:
-            self.logger.error(ex)
+            self.logger.fatal("Un erreur innatendue est survenue")
+            self.logger.fatal(str(ex))
+            if self.verbose>1:
+                print("-"*60)
+                traceback.print_exc(file=sys.stdout)
+                print("-"*60)
             return False
 
 class ToPredictScrapper(HistoryScrapper):

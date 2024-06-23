@@ -8,14 +8,14 @@ from scrapper import ToPredictScrapper,get_pmu_date,get_today
 
 if __name__=="__main__":
 
-    log=configure_logging("Scrapper")
+    args=dict(arg.split('=') for arg in sys.argv[1:])
+    log=configure_logging("Scrapper",**args)
 
     specialites=None
     use_proxy=False
     start_time = time.time()
 
     
-    args=dict(arg.split('=') for arg in sys.argv[1:])
     if not 'start' in args:
         args['start']=get_pmu_date(get_today())
         

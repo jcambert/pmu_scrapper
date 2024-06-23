@@ -17,7 +17,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=predicter","nrows=max", "mode=w","usefolder=06 2024","courses=trot_attele"],
+            "args": ["func=predicter","nrows=max", "mode=w","usefolder=06 2024","courses=trot_attele","verbose=3","log_level=INFO"],
             "console": "integratedTerminal"
         },
         {
@@ -25,8 +25,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "resultat.py",
-            "args": ["start=01052023","end=01062023","usefolder=05 2023"],
-            //"args": ["start=08012023","end=09012023"],
+            "args": ["start=01062024","end=20062024","mode=w","usefolder=06 2024","verbose=3","log_level=INFO"],
             "console": "integratedTerminal"
         },
         {
@@ -34,7 +33,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "scrap.py",
-            "args": ["start=01062024","end=08062024","mode=w","usefolder=06 2024"],
+            "args": ["start=01062024","end=20062024","mode=w","usefolder=06 2024","verbose=3","log_level=INFO"],
             "console": "integratedTerminal"
         },
         {
@@ -50,7 +49,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=trainer","nrows=max","courses=trot_attele","classifiers=SGD"],
+            "args": ["func=trainer","nrows=max","courses=trot_attele","classifiers=SGD","verbose=3","log_level=INFO"],
             "console": "integratedTerminal"
         },
         {
