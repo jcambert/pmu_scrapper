@@ -10,3 +10,4 @@ partic*.*
 **/~*.*
 predicted.csv
 **/__pycache__/scrapper.*.pyc
+**/*.7z
