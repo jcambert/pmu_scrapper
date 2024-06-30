@@ -28,6 +28,12 @@ DEFAULT_MUSIC=music_penalities['0']
 NON_PLACE_NUMBER = -999
 PLACE_NUMBER=1
 QUINTE_NUMBER=5
+
+def get_directory(directory,**args):
+    use_folder=get_args('usefolder',None,**args)
+    folder= os.path.join(PATHES[directory],use_folder) if use_folder else PATHES[directory]
+    return folder
+
 def get_model_name(model):
     return model.__class__.__name__.lower()
 
@@ -97,7 +103,7 @@ def get_nrows(**args) :
 def search_best(model,params,features_train:DataFrame,targets_train:DataFrame,cv=5,use_pipeline=True,**args):
     this_name=get_model_name( model)
     params_grid={}
-    n_job = args['n_job'] if 'n_job' in args else DEFAULT_GRIDSEARCH_NJOB
+    n_job =get_args('n_jobs',DEFAULT_GRIDSEARCH_NJOB,**args) 
     
     if(use_pipeline):
         this_model=create_pipelined_model(model)
@@ -115,7 +121,7 @@ def search_best(model,params,features_train:DataFrame,targets_train:DataFrame,cv
         log.info(f"targets train:{features_train.shape}")
         log.info(targets_train.head())
         log.info( type(targets_train))
-    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=verbose,n_jobs=n_job)
+    grid=GridSearchCV(this_model,this_params,cv=cv,verbose=verbose,n_jobs=n_job,refit=True,pre_dispatch='2*n_jobs',scoring='accuracy')
     grid.fit(features_train,targets_train)
     this_params=grid.best_params_
     this_model=grid.best_estimator_
@@ -212,9 +218,33 @@ def scorer(**args):
     """ Get predicted and resultat for courses"""
 
     def create_key(row):
+         """Compute Key"""
          return row['date']+'-'+str(row['reunion'])+'-'+str(row['reunion'])+'-'+str(row['course'])+'-'+str(row['numPmu'])
     
-    score_file='d:/score.csv'
+    def merge(left,right,mode='inner',key='key'):
+        """Merge Panda DataFrame By Mode and Key"""
+        result = pd.merge(left,right, on =key,how=mode).drop('specialite',axis=1).drop('date_y',axis=1).drop('reunion_y',axis=1).drop('course_y',axis=1).drop('numPmu_y',axis=1).drop(key,axis=1)
+        return result
+    
+    def print_statistics(result,classifier=None,synthese:DataFrame=None):
+        if classifier is None:
+            col=result ['rapport']
+        else:
+            col=result.query(f"index_classifier=='{classifier}'")['rapport']
+        somme = col.sum()
+        reussite=col.notna().sum()
+        compte=col.shape[0]
+        pct = reussite/compte
+
+        log.info(f"{classifier if classifier else ''} -> Somme des gain: {somme:0.2f} pour {compte} joués [ {pct:.2%} ]")
+        log.info("*"*60)
+
+        if synthese is not None and classifier is not None:
+            synthese.loc[len(synthese.index)] = [usefolder.split(' ')[1],usefolder.split(' ')[0],classifier,somme,compte,pct]
+            
+
+    folder=get_directory('output',**args)
+    score_file=os.path.join(folder,'score.csv')
     if os.path.exists(score_file):
         os.remove(score_file)
 
@@ -222,11 +252,12 @@ def scorer(**args):
     nrows=get_nrows(**args)
     courses = get_args('courses',SUPPORTED_COURSES,**args)
     # history_files=get_files(PATHES['input'],'participants',args['courses'] if 'courses' in args else SUPPORTED_COURSES)
-    resultat_files= get_files( os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'],'resultats',courses=courses)
-    predicted_files= get_files( os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'],'predicted',None)
+    resultat_files= get_files( folder,'resultats',courses=courses)
+    predicted_files= get_files(folder ,'predicted',None)
   
     predicted_file=predicted_files['predicted.csv']
     predicted_df=load_csv_file(predicted_file,nrows=nrows,is_for_prediction=True)
+    classifiers=predicted_df['index_classifier'].unique().tolist()
     # date;reunion;course;numPmu;
     predicted_df['key']=predicted_df.apply(create_key,axis=1)
     # resultat_df.to_csv('d:/predicted.csv',sep=';')
@@ -234,15 +265,31 @@ def scorer(**args):
     log.info(predicted_df.shape)
     log.info(predicted_df.head())
     print("-"*60)
+
+    synthese = pd.DataFrame({'year':pd.Series(dtype='int'),
+                             'month':pd.Series(dtype='int'),
+                             'index_classifier':pd.Series(dtype='string'),
+                             'gain':pd.Series(dtype='float64'),
+                             'played':pd.Series(dtype='float64'),
+                             'pct':pd.Series(dtype='float64')})
+
     for key,file in resultat_files.items():
-        resultat_df=load_csv_file(file,nrows=nrows,is_for_prediction= True)
+        resultat_df=load_csv_file(file,nrows=nrows,is_for_prediction= True).query("pari != 'E_SIMPLE_GAGNANT' ")
         resultat_df['key']=resultat_df.apply(create_key,axis=1)
         log.info(f"Load history file {key}")
         log.info(resultat_df.shape)
         log.info(resultat_df.head())
 
-        result = pd.merge(predicted_df, resultat_df, on ='key').drop('specialite',axis=1).drop('date_y',axis=1).drop('reunion_y',axis=1).drop('course_y',axis=1).drop('numPmu_y',axis=1).drop('key',axis=1)
-        result.to_csv(score_file,sep=';',mode='a')
+        result = merge(predicted_df, resultat_df,mode='left')
+        result.to_csv(score_file,sep=';',mode='a',decimal=',')
+
+        for classifier in classifiers:
+            print_statistics(result,classifier=classifier,synthese=synthese)
+
+        print_statistics(result)
+
+    synthese_file=os.path.join( get_directory('output',args={}),'scores.csv')
+    synthese.to_csv(synthese_file,sep=';',mode='a',decimal=',')
     pass
 
 def finder(**args):
@@ -278,7 +325,8 @@ def predicter(**args):
     output_df=pd.DataFrame(columns=output_columns)
     def internal_save(df):
         mode=args['mode'] if 'mode' in args else 'a'
-        folder= os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'] 
+        # folder= os.path.join(PATHES['output'],usefolder) if usefolder else PATHES['output'] 
+        folder=get_directory('output',**args)
         if not os.path.exists(folder):
             os.makedirs(folder)
         filename=os.path.join(folder,f"predicted.csv")
