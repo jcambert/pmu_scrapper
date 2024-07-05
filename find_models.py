@@ -150,7 +150,7 @@ def get_models_to_find_best(classifers):
     return models
 
 
-def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuffle=False,**args):
+def find_best_models(models,features,targets,type_course,test_size=0.2,random_state=200,shuffle=False,save_classifier=False,**args):
     features_train, features_test, targets_train, targets_test = train_test_split(features, targets, test_size=test_size, random_state=random_state,shuffle=shuffle)
 
 
@@ -161,6 +161,11 @@ def find_best_models(models,features,targets,test_size=0.2,random_state=200,shuf
         print('best model:',best_model.score(features_test,targets_test))
         print('best params:',best_params)
         bests.append({'name':best_name ,'model':best_model,'params':best_params})
+
+        if save_classifier:
+            save_classifier(best_name,type_course,best_model)
+            save_classifier_params(best_name,type_course,best_params)
+
     return bests
 
 def train(model,features,targets,test_size=0.2,random_state=200,shuffle=False,**args):
@@ -300,13 +305,13 @@ def finder(**args):
     classifiers=get_classifiers(**args)
     for this_type_course,file in files.items():
         features,targets=load_csv_file(file,nrows=nrows)
-        models=find_best_models( get_models_to_find_best(classifiers),features=features,targets=targets,args=args)
-        for model in models:
-            this_model=model['model']
-            this_name=model['name']
-            this_params=model['params']
-            save_classifier(this_name,this_type_course,this_model)
-            save_classifier_params(this_name,this_type_course,this_params)
+        models=find_best_models( get_models_to_find_best(classifiers),features=features,targets=targets,save_classifier=True,type_course=this_type_course,args=args)
+        # for model in models:
+        #     this_model=model['model']
+        #     this_name=model['name']
+        #     this_params=model['params']
+        #     save_classifier(this_name,this_type_course,this_model)
+        #     save_classifier_params(this_name,this_type_course,this_params)
 
 def predicter(**args):
     """ Predicter Function"""

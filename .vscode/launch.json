@@ -57,7 +57,7 @@
             "type": "debugpy",
             "request": "launch",
             "program": "find_models.py",
-            "args": ["func=finder","log_level=INFO" ,"verbose=3","nrows=max","courses=trot_attele","classifiers=SGD"],
+            "args": ["func=finder","log_level=INFO" ,"verbose=3","nrows=max","courses=trot_attele"],
             "console": "integratedTerminal"
         },
         {
